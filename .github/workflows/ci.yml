@@ -37,18 +37,7 @@ jobs:
           gradle-version: "8.9"
       - name: Unit tests and signed release APK
         working-directory: android
-        env:
-          NEARCHAIN_KEYSTORE_B64: ${{ secrets.NEARCHAIN_KEYSTORE_B64 }}
-          NEARCHAIN_STORE_PASSWORD: ${{ secrets.NEARCHAIN_STORE_PASSWORD }}
-          NEARCHAIN_KEY_ALIAS: ${{ secrets.NEARCHAIN_KEY_ALIAS }}
-          NEARCHAIN_KEY_PASSWORD: ${{ secrets.NEARCHAIN_KEY_PASSWORD }}
         run: |
-          if [ -z "$NEARCHAIN_KEYSTORE_B64" ]; then
-            echo "::error::NEARCHAIN_KEYSTORE_B64 is not set. Run the 'Create signing key' workflow first."
-            exit 1
-          fi
-          echo "$NEARCHAIN_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/nearchain.jks"
-          export NEARCHAIN_KEYSTORE="$RUNNER_TEMP/nearchain.jks"
           gradle --no-daemon testDebugUnitTest assembleRelease \
             -PnearchainVersionCode=$GITHUB_RUN_NUMBER \
             -PnearchainVersionName=0.1.$GITHUB_RUN_NUMBER
