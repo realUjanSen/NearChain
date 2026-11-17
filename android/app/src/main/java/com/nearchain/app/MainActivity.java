@@ -94,7 +94,8 @@ public class MainActivity extends Activity {
 
     private void startMining() {
         if (!WalletStore.exists(this)) {
-            toast("Create a wallet first. Mined coins are paid to it.");
+            showPanel(false);
+            toast("Create a wallet on this screen first. Mined coins are paid to it.");
             return;
         }
         MiningService.start(this);
