@@ -86,3 +86,4 @@ See `docs/NETWORK.md`.
 | Bluetooth                 | not started |
 
 Read `docs/SECURITY_AND_LIMITS.md` before doing anything else with the code.
+TestUpdate
