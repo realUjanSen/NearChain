@@ -1,0 +1,14 @@
+# NearChain shared node settings. Loaded by every client.
+# Consensus rules (supply, reward, block time, difficulty) are NOT settings
+# and cannot be changed here; the loader rejects them.
+
+node:
+  listen_port: 8333          # TCP port this node accepts peers on (0 = pick any free port)
+  listen_host: 0.0.0.0
+  data_dir: data             # folder for the chain file and wallet, relative to the project
+  peers:                     # optional peers to connect to at startup, "host:port"
+    # - "192.168.1.20:8333"
+
+storage:
+  chain_file: chain.json
+  wallet_file: wallet.json

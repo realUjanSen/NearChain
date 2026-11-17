@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NearChain</string>
+    <string name="miner_mode">Miner Mode</string>
+    <string name="trader_mode">Trader Mode</string>
+    <string name="start_mining">Start mining</string>
+    <string name="stop_mining">Stop</string>
+</resources>

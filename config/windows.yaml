@@ -1,0 +1,9 @@
+# Windows desktop settings. Loaded together with nearchain.yaml.
+
+mining:
+  default_mode: foreground   # foreground = full speed, background = pauses between batches
+  batch_size: 5000           # nonces tried before the UI is updated
+  background_sleep_ms: 50    # pause between batches in background mode
+
+ui:
+  refresh_ms: 500            # how often the window redraws

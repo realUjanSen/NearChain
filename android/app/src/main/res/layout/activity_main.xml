@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="8dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/tabMiner"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/miner_mode" />
+
+            <Button
+                android:id="@+id/tabTrader"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/trader_mode" />
+        </LinearLayout>
+
+        <!-- Miner Mode -->
+        <LinearLayout
+            android:id="@+id/minerPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="8dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/startButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/start_mining" />
+
+                <Button
+                    android:id="@+id/stopButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/stop_mining" />
+            </LinearLayout>
+
+            <TextView android:id="@+id/statusView" android:layout_width="match_parent" android:layout_height="wrap_content" />
+            <TextView android:id="@+id/heightView" android:layout_width="match_parent" android:layout_height="wrap_content" />
+            <TextView android:id="@+id/difficultyView" android:layout_width="match_parent" android:layout_height="wrap_content" />
+            <TextView android:id="@+id/rewardView" android:layout_width="match_parent" android:layout_height="wrap_content" />
+            <TextView android:id="@+id/blocksView" android:layout_width="match_parent" android:layout_height="wrap_content" />
+            <TextView android:id="@+id/hashrateView" android:layout_width="match_parent" android:layout_height="wrap_content" />
+            <TextView android:id="@+id/nonceView" android:layout_width="match_parent" android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="8dp"
+                android:text="Mining log"
+                android:textStyle="bold" />
+            <TextView
+                android:id="@+id/logView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- Trader Mode -->
+        <LinearLayout
+            android:id="@+id/traderPanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="8dp"
+            android:visibility="gone">
+
+            <TextView android:id="@+id/addressView" android:layout_width="match_parent" android:layout_height="wrap_content" android:fontFamily="monospace" android:textSize="12sp" />
+            <TextView android:id="@+id/balanceView" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="18sp" android:textStyle="bold" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="8dp"
+                android:text="Transactions: sending from the phone is not built yet. Use the desktop client to send CDC."
+                android:textSize="12sp" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="8dp"
+                android:text="History"
+                android:textStyle="bold" />
+            <TextView android:id="@+id/historyView" android:layout_width="match_parent" android:layout_height="wrap_content" android:fontFamily="monospace" android:textSize="12sp" />
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

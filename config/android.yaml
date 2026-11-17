@@ -1,0 +1,16 @@
+# Android settings. Reserved for the Android client (see android/README.md).
+# The desktop client does not read this file. Values here are the planned defaults.
+
+network:
+  bluetooth_enabled: false   # RFCOMM peers, when the Android client is built
+  wifi_enabled: true
+  listen_port: 8333
+
+mining:
+  allow_background: false    # Android may suspend mining when the app is not visible
+  max_cpu_percent: 50
+  require_charging: true
+
+storage:
+  chain_file: chain.json
+  wallet_file: wallet.json
