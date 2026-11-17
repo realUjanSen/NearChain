@@ -85,6 +85,12 @@ public class MainActivity extends Activity {
         feeEdit = findViewById(R.id.feeEdit);
         signedView = findViewById(R.id.signedView);
         updateStatusView = findViewById(R.id.updateStatusView);
+        try {
+            updateStatusView.setText("Version " + getPackageManager()
+                    .getPackageInfo(getPackageName(), 0).versionName);
+        } catch (Exception ignored) {
+            updateStatusView.setText("");
+        }
         hostEdit = findViewById(R.id.hostEdit);
         peersView = findViewById(R.id.peersView);
 
