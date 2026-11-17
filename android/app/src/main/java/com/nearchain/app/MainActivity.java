@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
+import android.text.method.PasswordTransformationMethod;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -186,7 +187,8 @@ public class MainActivity extends Activity {
     private EditText passwordField(String hint) {
         EditText field = new EditText(this);
         field.setHint(hint);
-        field.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIANT_PASSWORD);
+        field.setInputType(InputType.TYPE_CLASS_TEXT);
+        field.setTransformationMethod(PasswordTransformationMethod.getInstance());
         return field;
     }
 
