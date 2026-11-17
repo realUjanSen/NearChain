@@ -1,5 +1,8 @@
 package com.nearchain.app;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
@@ -150,9 +153,34 @@ public final class Updater {
         Intent intent = new Intent(context, InstallReceiver.class);
         PendingIntent pending = PendingIntent.getBroadcast(context, sessionId, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+        // Android stops this app when the update replaces it, so it cannot reopen itself.
+        // The notification stays behind, and tapping it starts the updated app.
+        postReopenNotification(context);
         session.commit(pending.getIntentSender());
         session.close();
         log.log("install handed to Android");
+    }
+
+    private static void postReopenNotification(Context context) {
+        Intent open = new Intent(context, MainActivity.class);
+        open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent openPending = PendingIntent.getActivity(context, 0, open,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        Notification.Builder builder;
+        if (Build.VERSION.SDK_INT >= 26) {
+            manager.createNotificationChannel(new NotificationChannel(
+                    "updates", "Updates", NotificationManager.IMPORTANCE_DEFAULT));
+            builder = new Notification.Builder(context, "updates");
+        } else {
+            builder = new Notification.Builder(context);
+        }
+        builder.setContentTitle("NearChain update installed")
+                .setContentText("Tap to open the new version")
+                .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                .setAutoCancel(true)
+                .setContentIntent(openPending);
+        manager.notify(42, builder.build());
     }
 
     private static String readAll(InputStream in) throws IOException {
