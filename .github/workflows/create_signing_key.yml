@@ -1,0 +1,47 @@
+name: Create signing key (run once)
+
+# Manual only. Creates the Android release keystore and stores it in repository secrets.
+# It refuses to run if the key already exists, because replacing the key would break
+# updates for every installed copy of the app.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  create-key:
+    name: Generate keystore and save secrets
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Stop if the key already exists
+        env:
+          GH_TOKEN: ${{ secrets.REPO_ADMIN_TOKEN }}
+        run: |
+          if gh secret list --repo "$GITHUB_REPOSITORY" | grep -q '^NEARCHAIN_KEYSTORE_B64'; then
+            echo "::error::NEARCHAIN_KEYSTORE_B64 already exists. Not replacing the signing key."
+            exit 1
+          fi
+
+      - name: Generate keystore and passwords
+        run: |
+          STORE_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)
+          KEY_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 24)
+          keytool -genkeypair -v -keystore nearchain-release.jks -alias nearchain \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass "$STORE_PASS" -keypass "$KEY_PASS" \
+            -dname "CN=NearChain, O=NearChain" -noprompt
+          echo "STORE_PASS=$STORE_PASS" >> "$GITHUB_ENV"
+          echo "KEY_PASS=$KEY_PASS" >> "$GITHUB_ENV"
+
+      - name: Save secrets to the repository
+        env:
+          GH_TOKEN: ${{ secrets.REPO_ADMIN_TOKEN }}
+        run: |
+          base64 -w 0 nearchain-release.jks | gh secret set NEARCHAIN_KEYSTORE_B64 --repo "$GITHUB_REPOSITORY"
+          printf '%s' "$STORE_PASS" | gh secret set NEARCHAIN_STORE_PASSWORD --repo "$GITHUB_REPOSITORY"
+          printf '%s' "$KEY_PASS" | gh secret set NEARCHAIN_KEY_PASSWORD --repo "$GITHUB_REPOSITORY"
+          printf '%s' "nearchain" | gh secret set NEARCHAIN_KEY_ALIAS --repo "$GITHUB_REPOSITORY"
+          rm -f nearchain-release.jks
+          echo "Signing key created and saved to repository secrets."
