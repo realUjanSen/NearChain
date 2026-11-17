@@ -44,11 +44,13 @@ jobs:
           APK=$(ls app/build/outputs/apk/debug/*.apk | head -n 1)
           echo "APK: $APK ($(stat -c %s "$APK") bytes)"
           unzip -l "$APK"
-          unzip -p "$APK" classes.dex > /tmp/classes.dex || { echo "classes.dex missing"; exit 1; }
-          SIZE=$(stat -c %s /tmp/classes.dex)
-          echo "classes.dex: $SIZE bytes"
-          [ "$SIZE" -gt 5000 ] || { echo "classes.dex too small"; exit 1; }
-          grep -aq "com/nearchain/app/MainActivity" /tmp/classes.dex || { echo "MainActivity not in dex"; exit 1; }
+          rm -rf /tmp/dex && mkdir /tmp/dex
+          unzip -q "$APK" 'classes*.dex' -d /tmp/dex || { echo "no dex files in APK"; exit 1; }
+          TOTAL=$(cat /tmp/dex/classes*.dex | wc -c)
+          echo "total dex bytes: $TOTAL"
+          [ "$TOTAL" -gt 5000 ] || { echo "dex code too small"; exit 1; }
+          grep -aq "com/nearchain/app/MainActivity" /tmp/dex/classes*.dex || { echo "MainActivity not in any dex"; exit 1; }
+          grep -aq "com/nearchain/core/Chain" /tmp/dex/classes*.dex || { echo "core classes not in any dex"; exit 1; }
           unzip -l "$APK" | grep -q "AndroidManifest.xml" || { echo "manifest missing"; exit 1; }
       - uses: actions/upload-artifact@v5
         with:
