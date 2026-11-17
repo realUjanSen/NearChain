@@ -64,7 +64,7 @@ jobs:
           unzip -p "$APK" 'META-INF/*.RSA' > /tmp/signer.rsa
           echo "Signing certificate of this build:"
           keytool -printcert -file /tmp/signer.rsa | grep -E "Owner|SHA256"
-          echo "Compare the SHA256 line with the previous release. If it differs, installs will conflict.
+          echo "Compare the SHA256 line with the previous release. If it differs, installs will conflict."
       - uses: actions/upload-artifact@v6
         with:
           name: nearchain-apk
