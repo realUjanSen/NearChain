@@ -5,6 +5,7 @@ import com.nearchain.core.Chain;
 import com.nearchain.core.ChainException;
 import com.nearchain.core.Consensus;
 import com.nearchain.core.Emission;
+import com.nearchain.wallet.Wallet;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +23,7 @@ public final class NodeHolder {
     private static volatile double hashrate;
     private static volatile int blocksMined;
     private static final List<String> log = new ArrayList<>();
+    private static volatile Wallet wallet;
 
     private NodeHolder() {
     }
@@ -34,6 +36,15 @@ public final class NodeHolder {
                 throw new IllegalStateException("genesis failed to validate", e);
             }
         }
+    }
+
+    /** The unlocked wallet, or null while locked. Held in memory only. */
+    public static Wallet wallet() {
+        return wallet;
+    }
+
+    public static void setWallet(Wallet value) {
+        wallet = value;
     }
 
     public static Chain chain() {

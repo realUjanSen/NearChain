@@ -27,5 +27,7 @@ android {
 }
 
 dependencies {
+    // Ed25519 signing and scrypt for Android versions before 13, where the platform lacks them.
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.78.1'
     testImplementation 'junit:junit:4.13.2'
 }

@@ -14,6 +14,7 @@ import com.nearchain.core.Block;
 import com.nearchain.core.Chain;
 import com.nearchain.core.ChainException;
 import com.nearchain.core.Miner;
+import com.nearchain.wallet.WalletStore;
 
 /**
  * Foreground service that mines blocks. A visible notification is required so
@@ -54,9 +55,14 @@ public class MiningService extends Service {
         if (worker != null && worker.isAlive()) {
             return START_STICKY;
         }
+        String address = WalletStore.address(this);
+        if (address == null) {
+            NodeHolder.log("create a wallet before mining");
+            stopSelf();
+            return START_NOT_STICKY;
+        }
         createChannel();
         showForeground();
-        String address = Identity.address(this);
         stopRequested = false;
         worker = new Thread(() -> mineLoop(address), "nearchain-miner");
         worker.start();
