@@ -24,7 +24,7 @@ jobs:
         run: python run_tests.py
 
   android-build:
-    name: Android debug build and unit tests
+    name: Android unit tests and release APK
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -35,15 +35,35 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: "8.9"
-      - name: Unit tests and debug APK
+      - name: Unit tests and signed release APK
         working-directory: android
-        run: gradle --no-daemon testDebugUnitTest assembleDebug
+        env:
+          NEARCHAIN_KEYSTORE_B64: ${{ secrets.NEARCHAIN_KEYSTORE_B64 }}
+          NEARCHAIN_STORE_PASSWORD: ${{ secrets.NEARCHAIN_STORE_PASSWORD }}
+          NEARCHAIN_KEY_ALIAS: ${{ secrets.NEARCHAIN_KEY_ALIAS }}
+          NEARCHAIN_KEY_PASSWORD: ${{ secrets.NEARCHAIN_KEY_PASSWORD }}
+        run: |
+          if [ -z "$NEARCHAIN_KEYSTORE_B64" ]; then
+            echo "::error::NEARCHAIN_KEYSTORE_B64 is not set. Run the 'Create signing key' workflow first."
+            exit 1
+          fi
+          echo "$NEARCHAIN_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/nearchain.jks"
+          export NEARCHAIN_KEYSTORE="$RUNNER_TEMP/nearchain.jks"
+          gradle --no-daemon testDebugUnitTest assembleRelease \
+            -PnearchainVersionCode=$GITHUB_RUN_NUMBER \
+            -PnearchainVersionName=0.1.$GITHUB_RUN_NUMBER
       - name: Verify APK contents
         working-directory: android
         run: |
-          APK=$(ls app/build/outputs/apk/debug/*.apk | head -n 1)
+          APK=$(ls app/build/outputs/apk/release/*.apk | grep -v unsigned | head -n 1 || true)
+          if [ -z "$APK" ]; then
+            APK=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
+            echo "::error::APK is unsigned (no signing secrets). It will not install as an update."
+            exit 1
+          fi
           echo "APK: $APK ($(stat -c %s "$APK") bytes)"
           unzip -l "$APK"
+          unzip -l "$APK" | grep -q "META-INF/.*\.RSA" || { echo "APK has no signature file"; exit 1; }
           rm -rf /tmp/dex && mkdir /tmp/dex
           unzip -q "$APK" 'classes*.dex' -d /tmp/dex || { echo "no dex files in APK"; exit 1; }
           TOTAL=$(cat /tmp/dex/classes*.dex | wc -c)
@@ -52,10 +72,14 @@ jobs:
           grep -aq "com/nearchain/app/MainActivity" /tmp/dex/classes*.dex || { echo "MainActivity not in any dex"; exit 1; }
           grep -aq "com/nearchain/core/Chain" /tmp/dex/classes*.dex || { echo "core classes not in any dex"; exit 1; }
           unzip -l "$APK" | grep -q "AndroidManifest.xml" || { echo "manifest missing"; exit 1; }
+          unzip -p "$APK" 'META-INF/*.RSA' > /tmp/signer.rsa
+          echo "Signing certificate of this build:"
+          keytool -printcert -file /tmp/signer.rsa | grep -E "Owner|SHA256"
+          echo "Compare the SHA256 line with the previous release. If it differs, installs will conflict.
       - uses: actions/upload-artifact@v6
         with:
-          name: nearchain-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: nearchain-apk
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
   windows-build:
@@ -86,7 +110,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v6
         with:
-          name: nearchain-debug-apk
+          name: nearchain-apk
           path: release/apk
       - uses: actions/download-artifact@v6
         with:
@@ -95,7 +119,7 @@ jobs:
       - name: Package files for the release
         run: |
           cd release
-          mv apk/*.apk NearChain-debug.apk
+          mv apk/*.apk NearChain.apk
           (cd windows && zip -qr ../NearChain-windows.zip NearChain)
           ls -l
       - name: Work out the version
@@ -107,19 +131,15 @@ jobs:
         run: |
           if [[ "$REF" == refs/tags/v* ]]; then
             TAG="$REF_NAME"
-            PRERELEASE=""
           else
             TAG="v0.1.$RUN_NUMBER"
-            PRERELEASE=""
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
-          PRERELEASE: ${{ steps.version.outputs.prerelease }}
           SHA: ${{ github.sha }}
         run: |
-          gh release create "$TAG" release/NearChain-debug.apk release/NearChain-windows.zip \
-            --target "$SHA" --title "NearChain $TAG" --generate-notes $PRERELEASE
+          gh release create "$TAG" release/NearChain.apk release/NearChain-windows.zip \
+            --target "$SHA" --title "NearChain $TAG" --generate-notes
