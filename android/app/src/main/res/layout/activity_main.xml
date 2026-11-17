@@ -101,7 +101,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingTop="8dp"
-                android:text="Transactions: sending from the phone is not built yet. Use the desktop client to send CDC."
+                android:text="Sending CDC is not available on this phone yet. Coins mined to this address cannot be spent until transaction signing is added to the Android app."
                 android:textSize="12sp" />
             <TextView
                 android:layout_width="match_parent"
