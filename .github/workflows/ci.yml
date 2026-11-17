@@ -110,7 +110,7 @@ jobs:
             PRERELEASE=""
           else
             TAG="v0.1.$RUN_NUMBER"
-            PRERELEASE="--prerelease"
+            PRERELEASE=""
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
