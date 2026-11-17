@@ -14,11 +14,16 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.nearchain.core.Consensus;
+
 import com.nearchain.core.Chain;
+import com.nearchain.net.Log;
 import com.nearchain.core.TxCodec;
 import com.nearchain.core.Sha;
 import com.nearchain.wallet.Wallet;
 import com.nearchain.wallet.WalletStore;
+
+import java.io.File;
 
 public class MainActivity extends Activity {
     /** Matches MIN_FEE in src/nearchain/consensus.py. */
@@ -43,6 +48,9 @@ public class MainActivity extends Activity {
     private EditText amountEdit;
     private EditText feeEdit;
     private TextView signedView;
+    private TextView updateStatusView;
+    private EditText hostEdit;
+    private TextView peersView;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable refresh = new Runnable() {
@@ -76,6 +84,13 @@ public class MainActivity extends Activity {
         amountEdit = findViewById(R.id.amountEdit);
         feeEdit = findViewById(R.id.feeEdit);
         signedView = findViewById(R.id.signedView);
+        updateStatusView = findViewById(R.id.updateStatusView);
+        hostEdit = findViewById(R.id.hostEdit);
+        peersView = findViewById(R.id.peersView);
+
+        NodeHolder.startNetwork(this);
+        ((Button) findViewById(R.id.checkUpdateButton)).setOnClickListener(v -> checkForUpdate());
+        ((Button) findViewById(R.id.connectButton)).setOnClickListener(v -> connectToPeer());
 
         ((Button) findViewById(R.id.tabMiner)).setOnClickListener(v -> showPanel(true));
         ((Button) findViewById(R.id.tabTrader)).setOnClickListener(v -> showPanel(false));
@@ -111,6 +126,70 @@ public class MainActivity extends Activity {
     protected void onPause() {
         handler.removeCallbacks(refresh);
         super.onPause();
+    }
+
+    // ----- network -----
+
+    private void connectToPeer() {
+        String entry = hostEdit.getText().toString().trim();
+        int colon = entry.lastIndexOf(':');
+        if (colon <= 0) {
+            toast("Enter the address as host:port, for example 192.168.1.20:8333");
+            return;
+        }
+        try {
+            int port = Integer.parseInt(entry.substring(colon + 1));
+            NodeHolder.net().connect(entry.substring(0, colon), port);
+            hostEdit.setText("");
+        } catch (NumberFormatException e) {
+            toast("The port must be a number.");
+        }
+    }
+
+    // ----- updates -----
+
+    private void checkForUpdate() {
+        updateStatusView.setText("Checking GitHub...");
+        runInBackground(() -> {
+            try {
+                Updater.Release release = Updater.latest();
+                int installed = Updater.installedVersionCode(this);
+                if (release == null || release.number <= installed) {
+                    setUpdateStatus("You have the latest version (build " + installed + ").");
+                    return;
+                }
+                setUpdateStatus("Update available: " + release.tag);
+                runOnUiThread(() -> new AlertDialog.Builder(this)
+                        .setTitle("Update NearChain")
+                        .setMessage("Install " + release.tag + "? Android will ask you to confirm.")
+                        .setPositiveButton("Install", (dialog, which) -> installUpdate(release))
+                        .setNegativeButton("Later", null)
+                        .show());
+            } catch (Exception e) {
+                setUpdateStatus("Update check failed: " + e.getMessage());
+            }
+        });
+    }
+
+    private void installUpdate(Updater.Release release) {
+        if (!Updater.canInstall(this)) {
+            toast("Allow NearChain to install apps, then press Install again.");
+            startActivity(Updater.unknownSourcesSettings(this));
+            return;
+        }
+        runInBackground(() -> {
+            try {
+                File apk = Updater.download(this, release, NodeHolder::log);
+                Updater.install(this, apk, NodeHolder::log);
+                setUpdateStatus("Install started for " + release.tag + ".");
+            } catch (Exception e) {
+                setUpdateStatus("Update failed: " + e.getMessage());
+            }
+        });
+    }
+
+    private void setUpdateStatus(String text) {
+        runOnUiThread(() -> updateStatusView.setText(text));
     }
 
     // ----- wallet -----
@@ -259,6 +338,7 @@ public class MainActivity extends Activity {
         nonceView.setText("Current nonce: " + String.format("%,d", NodeHolder.currentNonce()));
         logView.setText(NodeHolder.logText());
 
+        peersView.setText(NodeHolder.peersText());
         addressView.setText(address == null ? "No wallet yet" : "Address: " + address);
         walletStatusView.setText(wallet != null ? "Wallet unlocked"
                 : address == null ? "No wallet. Create one to start mining." : "Wallet locked");

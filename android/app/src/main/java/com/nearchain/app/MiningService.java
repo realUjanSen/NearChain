@@ -16,10 +16,7 @@ import com.nearchain.core.ChainException;
 import com.nearchain.core.Miner;
 import com.nearchain.wallet.WalletStore;
 
-/**
- * Foreground service that mines blocks. A visible notification is required so
- * Android does not suspend the work while the screen is off.
- */
+/** Foreground service that mines blocks. The notification keeps Android from suspending the work. */
 public class MiningService extends Service {
     public static final String ACTION_START = "com.nearchain.app.action.START";
     public static final String ACTION_STOP = "com.nearchain.app.action.STOP";
@@ -61,6 +58,7 @@ public class MiningService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
+        NodeHolder.startNetwork(this);
         createChannel();
         showForeground();
         stopRequested = false;
@@ -92,15 +90,14 @@ public class MiningService extends Service {
                 if (found) {
                     break;
                 }
+                // A block arrived from a peer while we were mining: start again on the new tip.
                 if (!chain.tip().hash().equals(block.header.prevHash)) {
-                    break; // the tip changed; start over on the new tip
+                    break;
                 }
             }
             if (found) {
                 try {
-                    chain.append(block);
-                    NodeHolder.blockMined();
-                    NodeHolder.log("mined block " + block.header.height + " (reward " + block.reward + " CDC)");
+                    NodeHolder.submitMined(block);
                 } catch (ChainException e) {
                     NodeHolder.log("block discarded: " + e.getMessage());
                 }

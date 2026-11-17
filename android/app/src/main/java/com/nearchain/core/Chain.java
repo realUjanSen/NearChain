@@ -1,16 +1,27 @@
 package com.nearchain.core;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Chain with full block validation. Chain selection and transactions come in a later version. */
+/**
+ * Chain with full block validation and cumulative-work chain selection. Blocks cannot yet
+ * contain transactions on Android; the network layer rejects blocks that do.
+ */
 public final class Chain {
     private final List<Block> blocks = new ArrayList<>();
+    private final List<BigInteger> work = new ArrayList<>();
     private final Map<String, Long> balances = new HashMap<>();
 
     public Chain(Block genesis) throws ChainException {
+        checkGenesis(genesis);
+        blocks.add(genesis);
+        work.add(BigInteger.valueOf(genesis.header.difficulty));
+    }
+
+    private static void checkGenesis(Block genesis) throws ChainException {
         Header h = genesis.header;
         boolean ok = h.height == 0 && h.version == Consensus.PROTOCOL_VERSION
                 && Consensus.ZERO_HASH.equals(h.prevHash) && genesis.reward == 0
@@ -18,7 +29,18 @@ public final class Chain {
         if (!ok) {
             throw new ChainException("invalid genesis block");
         }
-        blocks.add(genesis);
+    }
+
+    /** Validates every block from genesis onward. */
+    public static Chain fromBlocks(List<Block> list) throws ChainException {
+        if (list.isEmpty()) {
+            throw new ChainException("empty chain");
+        }
+        Chain chain = new Chain(list.get(0));
+        for (int i = 1; i < list.size(); i++) {
+            chain.append(list.get(i));
+        }
+        return chain;
     }
 
     public static Block genesisBlock(long difficulty) {
@@ -36,6 +58,10 @@ public final class Chain {
 
     public synchronized long height() {
         return tip().header.height;
+    }
+
+    public synchronized BigInteger cumulativeWork() {
+        return work.get(work.size() - 1);
     }
 
     public synchronized long issued() {
@@ -61,7 +87,7 @@ public final class Chain {
         return Difficulty.next(samples);
     }
 
-    /** Build an unmined block on the current tip. Mining is done by the caller. */
+    /** Build an unmined block on the current tip. The caller mines it. */
     public synchronized Block prepareBlock(String miner, long timestamp) {
         Block tip = tip();
         long height = tip.header.height + 1;
@@ -102,7 +128,29 @@ public final class Chain {
             throw new ChainException("proof of work does not meet the target");
         }
         blocks.add(block);
+        work.add(cumulativeWork().add(BigInteger.valueOf(h.difficulty)));
         Long previous = balances.get(block.miner);
         balances.put(block.miner, (previous == null ? 0L : previous) + block.reward);
+    }
+
+    /**
+     * Adopt the candidate chain if it is fully valid, starts from the same genesis, and has
+     * more cumulative work than this chain. Returns true when the chain was replaced.
+     */
+    public synchronized boolean consider(List<Block> candidateBlocks) throws ChainException {
+        Chain candidate = fromBlocks(candidateBlocks);
+        if (!candidate.blocks.get(0).hash().equals(blocks.get(0).hash())) {
+            throw new ChainException("different genesis block");
+        }
+        if (candidate.cumulativeWork().compareTo(cumulativeWork()) <= 0) {
+            return false;
+        }
+        blocks.clear();
+        blocks.addAll(candidate.blocks);
+        work.clear();
+        work.addAll(candidate.work);
+        balances.clear();
+        balances.putAll(candidate.balances);
+        return true;
     }
 }

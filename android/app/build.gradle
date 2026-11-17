@@ -10,8 +10,9 @@ android {
         applicationId 'com.nearchain.app'
         minSdk 21
         targetSdk 34
-        versionCode 1
-        versionName '0.1.0'
+        // CI passes the workflow run number as versionCode, so every build is newer than the last.
+        versionCode((project.findProperty('nearchainVersionCode') ?: '1') as Integer)
+        versionName(project.findProperty('nearchainVersionName') ?: '0.1.0')
     }
 
     buildTypes {
