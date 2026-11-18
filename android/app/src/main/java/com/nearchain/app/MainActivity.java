@@ -20,6 +20,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import javax.crypto.Cipher;
+
 import com.nearchain.core.Consensus;
 
 import com.nearchain.core.Chain;
@@ -56,6 +58,7 @@ public class MainActivity extends Activity {
     private TextView signedView;
     private TextView updateStatusView;
     private Button startButton;
+    private static final int REQUEST_SCAN = 11;
     private ImageView qrView;
     private boolean qrShown;
     private Button stopButton;
@@ -123,6 +126,8 @@ public class MainActivity extends Activity {
         ((Button) findViewById(R.id.showQrButton)).setOnClickListener(v -> toggleQr());
         ((Button) findViewById(R.id.explorerButton)).setOnClickListener(
                 v -> startActivity(new Intent(this, ExplorerActivity.class)));
+        ((Button) findViewById(R.id.scanButton)).setOnClickListener(
+                v -> startActivityForResult(new Intent(this, ScanActivity.class), REQUEST_SCAN));
         setupLogLimit();
         ((Button) findViewById(R.id.createWalletButton)).setOnClickListener(v -> createWallet());
         ((Button) findViewById(R.id.unlockButton)).setOnClickListener(v -> unlockWallet());
@@ -207,6 +212,7 @@ public class MainActivity extends Activity {
                 .setPositiveButton("Delete", (dialog, which) -> {
                     MiningService.stop(this);
                     NodeHolder.setWallet(null);
+                    BiometricUnlock.forget(this);
                     if (WalletStore.delete(this)) {
                         toast("Wallet deleted.");
                     } else {
@@ -337,15 +343,103 @@ public class MainActivity extends Activity {
             toast("No wallet yet. Create one first.");
             return;
         }
-        askPassword("Unlock wallet", "Enter your wallet password.", false, password ->
-                runInBackground(() -> {
-                    try {
-                        NodeHolder.setWallet(WalletStore.unlock(this, password));
-                        toast("Wallet unlocked.");
-                    } catch (WalletStore.WalletException e) {
-                        toast(e.getMessage());
-                    }
-                }));
+        if (BiometricUnlock.supported() && BiometricUnlock.isEnabled(this)) {
+            unlockWithBiometric();
+            return;
+        }
+        askPassword("Unlock wallet", "Enter your wallet password.", false, this::unlockWithPassword);
+    }
+
+    private void unlockWithPassword(String password) {
+        runInBackground(() -> {
+            try {
+                NodeHolder.setWallet(WalletStore.unlock(this, password));
+                toast("Wallet unlocked.");
+                if (BiometricUnlock.supported() && !BiometricUnlock.isEnabled(this)) {
+                    runOnUiThread(() -> offerBiometric(password));
+                }
+            } catch (WalletStore.WalletException e) {
+                toast(e.getMessage());
+            }
+        });
+    }
+
+    private void unlockWithBiometric() {
+        try {
+            Cipher cipher = BiometricUnlock.decryptCipher(this);
+            BiometricUnlock.authenticate(this, cipher, "Unlock your wallet", new BiometricUnlock.Callback() {
+                @Override
+                public void onAuthenticated(Cipher authenticated) {
+                    runInBackground(() -> {
+                        try {
+                            String password = BiometricUnlock.read(MainActivity.this, authenticated);
+                            NodeHolder.setWallet(WalletStore.unlock(MainActivity.this, password));
+                            toast("Wallet unlocked.");
+                        } catch (Exception e) {
+                            toast("Could not unlock: " + e.getMessage());
+                        }
+                    });
+                }
+
+                @Override
+                public void onFailed(String message) {
+                    toast(message);
+                }
+            });
+        } catch (Exception e) {
+            // The key was removed, for example after a new fingerprint was added.
+            BiometricUnlock.forget(this);
+            toast("Fingerprint unlock was reset. Unlock with your password once to turn it on again.");
+        }
+    }
+
+    private void offerBiometric(String password) {
+        new AlertDialog.Builder(this)
+                .setTitle("Use fingerprint or face?")
+                .setMessage("Unlock next time with your fingerprint or face instead of typing the password. "
+                        + "The password stays encrypted on this phone.")
+                .setPositiveButton("Turn on", (dialog, which) -> enrollBiometric(password))
+                .setNegativeButton("Not now", null)
+                .show();
+    }
+
+    private void enrollBiometric(String password) {
+        try {
+            Cipher cipher = BiometricUnlock.encryptCipher();
+            BiometricUnlock.authenticate(this, cipher, "Confirm to turn on fingerprint unlock",
+                    new BiometricUnlock.Callback() {
+                        @Override
+                        public void onAuthenticated(Cipher authenticated) {
+                            runInBackground(() -> {
+                                try {
+                                    BiometricUnlock.save(MainActivity.this, authenticated, password);
+                                    toast("Fingerprint unlock is on.");
+                                } catch (Exception e) {
+                                    toast("Could not turn on fingerprint unlock: " + e.getMessage());
+                                }
+                            });
+                        }
+
+                        @Override
+                        public void onFailed(String message) {
+                            toast(message);
+                        }
+                    });
+        } catch (Exception e) {
+            toast("Fingerprint unlock is not available on this phone: " + e.getMessage());
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_SCAN && resultCode == RESULT_OK && data != null) {
+            String text = data.getStringExtra(ScanActivity.EXTRA_TEXT);
+            if (text != null) {
+                recipientEdit.setText(text.trim());
+                toast("Recipient filled from the QR code.");
+            }
+        }
     }
 
     private interface PasswordCallback {
