@@ -204,6 +204,11 @@
                 android:paddingTop="12dp"
                 android:text="Send CDC"
                 android:textStyle="bold" />
+            <Button
+                android:id="@+id/scanButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Scan QR code to fill recipient" />
             <EditText
                 android:id="@+id/recipientEdit"
                 android:layout_width="match_parent"
