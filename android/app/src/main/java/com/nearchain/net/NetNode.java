@@ -273,8 +273,12 @@ public final class NetNode {
         }
     }
 
-    private static JSONObject txMessage(Tx tx) throws org.json.JSONException {
-        return new JSONObject().put("type", "tx").put("tx", new JSONObject(tx.signedJson()));
+    private static JSONObject txMessage(Tx tx) throws IOException {
+        try {
+            return new JSONObject().put("type", "tx").put("tx", new JSONObject(tx.signedJson()));
+        } catch (org.json.JSONException e) {
+            throw new IOException("could not build transfer message", e);
+        }
     }
 
     private JSONObject hello() throws IOException {

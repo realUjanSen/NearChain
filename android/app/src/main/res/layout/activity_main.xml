@@ -36,7 +36,6 @@
                 android:text="@string/trader_mode" />
         </LinearLayout>
 
-        <!-- Miner Mode -->
         <!-- Updates -->
         <LinearLayout
             android:layout_width="match_parent"
@@ -56,12 +55,20 @@
                 android:textSize="12sp" />
         </LinearLayout>
 
+        <!-- Miner Mode -->
         <LinearLayout
             android:id="@+id/minerPanel"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:paddingTop="8dp">
+
+            <Button
+                android:id="@+id/walletToggleButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFFFF"
+                android:text="Unlock wallet" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -73,6 +80,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
+                    android:textColor="#FFFFFFFF"
                     android:text="@string/start_mining" />
 
                 <Button
@@ -80,6 +88,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
+                    android:textColor="#FFFFFFFF"
                     android:text="@string/stop_mining" />
             </LinearLayout>
 
@@ -90,30 +99,6 @@
             <TextView android:id="@+id/blocksView" android:layout_width="match_parent" android:layout_height="wrap_content" />
             <TextView android:id="@+id/hashrateView" android:layout_width="match_parent" android:layout_height="wrap_content" />
             <TextView android:id="@+id/nonceView" android:layout_width="match_parent" android:layout_height="wrap_content" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingTop="8dp"
-                android:text="Activity log"
-                android:textStyle="bold" />
-            <EditText
-                android:id="@+id/logLimitEdit"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:hint="Lines to keep (20 to 5000)"
-                android:inputType="number" />
-            <ScrollView
-                android:id="@+id/logScroll"
-                android:layout_width="match_parent"
-                android:layout_height="200dp">
-                <TextView
-                    android:id="@+id/logView"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="monospace"
-                    android:textSize="12sp" />
-            </ScrollView>
 
             <TextView
                 android:layout_width="match_parent"
@@ -138,6 +123,30 @@
                 android:layout_height="wrap_content"
                 android:fontFamily="monospace"
                 android:textSize="12sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="8dp"
+                android:text="Activity log"
+                android:textStyle="bold" />
+            <EditText
+                android:id="@+id/logLimitEdit"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="Lines to keep (20 to 5000)"
+                android:inputType="number" />
+            <ScrollView
+                android:id="@+id/logScroll"
+                android:layout_width="match_parent"
+                android:layout_height="200dp">
+                <TextView
+                    android:id="@+id/logView"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:textSize="12sp" />
+            </ScrollView>
         </LinearLayout>
 
         <!-- Trader Mode -->
@@ -173,31 +182,57 @@
                     android:text="Unlock wallet" />
             </LinearLayout>
 
-            <Button
-                android:id="@+id/lockButton"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Lock wallet" />
+                android:orientation="horizontal">
 
-            <Button
-                android:id="@+id/deleteWalletButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:backgroundTint="#C62828"
-                android:textColor="#FFFFFFFF"
-                android:text="Delete wallet" />
+                <Button
+                    android:id="@+id/lockButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:backgroundTint="#C62828"
+                    android:textColor="#FFFFFFFF"
+                    android:text="Lock wallet" />
 
-            <Button
-                android:id="@+id/showQrButton"
+                <Button
+                    android:id="@+id/deleteWalletButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:backgroundTint="#C62828"
+                    android:textColor="#FFFFFFFF"
+                    android:text="Delete wallet" />
+            </LinearLayout>
+
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Show my address as QR code" />
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/showQrButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Show my address as QR" />
+
+                <Button
+                    android:id="@+id/scanButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Scan QR to fill recipient" />
+            </LinearLayout>
+
             <ImageView
                 android:id="@+id/qrView"
                 android:layout_width="220dp"
                 android:layout_height="220dp"
                 android:layout_gravity="center_horizontal"
                 android:visibility="gone" />
+
             <Button
                 android:id="@+id/explorerButton"
                 android:layout_width="match_parent"
@@ -210,11 +245,6 @@
                 android:paddingTop="12dp"
                 android:text="Send CDC"
                 android:textStyle="bold" />
-            <Button
-                android:id="@+id/scanButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Scan QR code to fill recipient" />
             <EditText
                 android:id="@+id/recipientEdit"
                 android:layout_width="match_parent"
@@ -239,7 +269,7 @@
                 android:id="@+id/sendButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Sign transfer" />
+                android:text="Send CDC" />
             <TextView
                 android:id="@+id/signedView"
                 android:layout_width="match_parent"
