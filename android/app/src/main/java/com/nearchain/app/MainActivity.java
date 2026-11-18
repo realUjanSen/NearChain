@@ -125,6 +125,7 @@ public class MainActivity extends Activity {
         ((Button) findViewById(R.id.lockButton)).setOnClickListener(v -> {
             NodeHolder.setWallet(null);
             toast("Wallet locked.");
+            NodeHolder.log("wallet locked");
         });
         qrView = findViewById(R.id.qrView);
         ((Button) findViewById(R.id.showQrButton)).setOnClickListener(v -> toggleQr());
@@ -197,6 +198,7 @@ public class MainActivity extends Activity {
             qrView.setVisibility(View.VISIBLE);
             qrShown = true;
             toast("Scan this code to send CDC to " + address);
+            NodeHolder.log("address QR code shown");
         } catch (Exception e) {
             toast("Could not make the QR code: " + e.getMessage());
         }
@@ -216,6 +218,7 @@ public class MainActivity extends Activity {
                 .setPositiveButton("Delete", (dialog, which) -> {
                     MiningService.stop(this);
                     NodeHolder.setWallet(null);
+                    NodeHolder.log("wallet deleted");
                     BiometricUnlock.forget(this);
                     if (WalletStore.delete(this)) {
                         toast("Wallet deleted.");
@@ -265,6 +268,7 @@ public class MainActivity extends Activity {
         try {
             int port = Integer.parseInt(entry.substring(colon + 1));
             NodeHolder.net().connect(entry.substring(0, colon), port);
+            NodeHolder.log("connecting to " + entry);
             hostEdit.setText("");
         } catch (NumberFormatException e) {
             toast("The port must be a number.");
@@ -335,6 +339,7 @@ public class MainActivity extends Activity {
                             Wallet wallet = WalletStore.create(this, password);
                             NodeHolder.setWallet(wallet);
                             toast("Wallet created. Address: " + wallet.address());
+                            NodeHolder.log("wallet created: " + wallet.address());
                             if (BiometricUnlock.supported()) {
                                 runOnUiThread(() -> offerBiometric(password));
                             }
@@ -362,6 +367,7 @@ public class MainActivity extends Activity {
             try {
                 NodeHolder.setWallet(WalletStore.unlock(this, password));
                 toast("Wallet unlocked.");
+                NodeHolder.log("wallet unlocked with password");
                 if (BiometricUnlock.supported() && !BiometricUnlock.isEnabled(this)) {
                     runOnUiThread(() -> offerBiometric(password));
                 }
@@ -382,6 +388,7 @@ public class MainActivity extends Activity {
                             String password = BiometricUnlock.read(MainActivity.this, authenticated);
                             NodeHolder.setWallet(WalletStore.unlock(MainActivity.this, password));
                             toast("Wallet unlocked.");
+                            NodeHolder.log("wallet unlocked with fingerprint or face");
                         } catch (Exception e) {
                             toast("Could not unlock: " + e.getMessage());
                         }
@@ -444,6 +451,7 @@ public class MainActivity extends Activity {
             String text = data.getStringExtra(ScanActivity.EXTRA_TEXT);
             if (text != null) {
                 recipientEdit.setText(text.trim());
+                NodeHolder.log("recipient scanned from QR code: " + text.trim());
                 toast("Recipient filled from the QR code.");
             }
         }
@@ -534,7 +542,10 @@ public class MainActivity extends Activity {
         String signatureHex = Sha.toHex(wallet.sign(signing.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         String signed = TxCodec.signedJson(wallet.publicKeyHex(), wallet.address(), recipient,
                 amount, fee, nonce, com.nearchain.core.Consensus.NETWORK_ID, signatureHex);
-        signedView.setText("Signed transfer. Tx ID: " + TxCodec.txId(signed) + "\n\n" + signed);
+        String txId = TxCodec.txId(signed);
+        signedView.setText("Signed transfer. Tx ID: " + txId + "\n\n" + signed);
+        NodeHolder.log("signed transfer of " + amount + " CDC to " + recipient + " (tx " + txId.substring(0, 12) + "...)");
+        NodeHolder.log("transfer not sent: the Android client cannot relay transfers to peers yet");
     }
 
     // ----- display -----
