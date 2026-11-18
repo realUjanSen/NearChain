@@ -16,7 +16,12 @@ public final class Sha {
     }
 
     public static String sha256dHex(String text) {
-        return toHex(digest(digest(text.getBytes(StandardCharsets.UTF_8))));
+        return sha256dBytes(text.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** Double SHA-256 over raw bytes, returned as hex. */
+    public static String sha256dBytes(byte[] data) {
+        return toHex(digest(digest(data)));
     }
 
     public static String toHex(byte[] bytes) {
@@ -27,6 +32,23 @@ public final class Sha {
             out[i * 2 + 1] = HEX[v & 0x0f];
         }
         return new String(out);
+    }
+
+    /** Decodes hex text. Throws IllegalArgumentException on bad input. */
+    public static byte[] fromHex(String hex) {
+        if (hex.length() % 2 != 0) {
+            throw new IllegalArgumentException("odd-length hex");
+        }
+        byte[] out = new byte[hex.length() / 2];
+        for (int i = 0; i < out.length; i++) {
+            int hi = Character.digit(hex.charAt(i * 2), 16);
+            int lo = Character.digit(hex.charAt(i * 2 + 1), 16);
+            if (hi < 0 || lo < 0) {
+                throw new IllegalArgumentException("invalid hex");
+            }
+            out[i] = (byte) ((hi << 4) | lo);
+        }
+        return out;
     }
 
     private static byte[] digest(byte[] data) {

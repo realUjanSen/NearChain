@@ -15,6 +15,8 @@ public final class Consensus {
     public static final long MAX_DIFFICULTY = 1L << 48;
     public static final long GENESIS_DIFFICULTY = 1L << 16;
     public static final long GENESIS_TIMESTAMP = 1_700_000_000L;
+    /** Smallest fee a transfer may pay. Matches MIN_FEE in src/nearchain/consensus.py. */
+    public static final long MIN_FEE = 1L;
 
     public static final String ZERO_HASH = "0000000000000000000000000000000000000000000000000000000000000000";
     public static final String ZERO_MINER = ADDRESS_PREFIX + "0000000000000000000000000000000000000000";

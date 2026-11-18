@@ -4,6 +4,8 @@ import com.nearchain.core.Block;
 import com.nearchain.core.Chain;
 import com.nearchain.core.ChainException;
 import com.nearchain.core.Consensus;
+import com.nearchain.core.Mempool;
+import com.nearchain.core.Tx;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -13,6 +15,7 @@ import java.math.BigInteger;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -22,14 +25,18 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public final class NetNode {
     private final Chain chain;
+    private final Mempool mempool;
     private final Log log;
+    private final Events events;
     private final List<Peer> peers = new CopyOnWriteArrayList<>();
     private volatile ServerSocket server;
     private volatile boolean running;
 
-    public NetNode(Chain chain, Log log) {
+    public NetNode(Chain chain, Mempool mempool, Log log, Events events) {
         this.chain = chain;
+        this.mempool = mempool;
         this.log = log;
+        this.events = events;
     }
 
     /** Listen for peers on this port. Returns the port actually bound. */
@@ -61,10 +68,6 @@ public final class NetNode {
         }, "nearchain-connect");
         t.setDaemon(true);
         t.start();
-    }
-
-    public List<Peer> peers() {
-        return peers;
     }
 
     /** One line per peer, for the UI. */
@@ -131,7 +134,7 @@ public final class NetNode {
                 onBlock(peer, msg);
                 break;
             case "tx":
-                log.log("ignored a transaction: the Android client cannot check transactions yet");
+                onTransfer(peer, msg);
                 break;
             default:
                 throw new IOException("unknown message type " + type);
@@ -154,13 +157,13 @@ public final class NetNode {
 
     private void onChain(JSONObject msg) throws Exception {
         JSONArray array = msg.getJSONArray("blocks");
-        List<Block> blocks = new java.util.ArrayList<>();
+        List<Block> blocks = new ArrayList<>();
         for (int i = 0; i < array.length(); i++) {
             blocks.add(BlockCodec.fromJson(array.getJSONObject(i)));
         }
         try {
-            boolean replaced = chain.consider(blocks);
-            if (replaced) {
+            if (chain.consider(blocks)) {
+                mempool.revalidate();
                 log.log("synced to height " + chain.height());
             }
         } catch (ChainException e) {
@@ -191,11 +194,27 @@ public final class NetNode {
         }
         if (accepted) {
             log.log("accepted block " + block.header.height + " from " + peer.name());
+            mempool.removeMined(block);
+            for (Tx t : block.txs) {
+                events.transferConfirmed(t);
+            }
             broadcastBlock(block, peer);
         }
         if (needSync) {
             send(peer, new JSONObject().put("type", "get_chain"));
         }
+    }
+
+    private void onTransfer(Peer peer, JSONObject msg) throws Exception {
+        Tx tx = BlockCodec.txFromJson(msg.getJSONObject("tx"));
+        String reason = mempool.add(tx);
+        if (reason != null) {
+            log.log("rejected transfer from " + peer.name() + ": " + reason);
+            return;
+        }
+        log.log("transfer received: " + tx.amount + " CDC from " + tx.sender + " to " + tx.recipient);
+        events.transferPending(tx);
+        broadcastTx(tx, peer);
     }
 
     /** Send a newly mined or accepted block to every peer except `except`. */
@@ -209,6 +228,20 @@ public final class NetNode {
             }
         } catch (Exception e) {
             log.log("could not relay block: " + e.getMessage());
+        }
+    }
+
+    /** Send a transfer to every peer except `except`. */
+    public void broadcastTx(Tx tx, Peer except) {
+        try {
+            JSONObject msg = new JSONObject().put("type", "tx").put("tx", new JSONObject(tx.signedJson()));
+            for (Peer p : peers) {
+                if (p != except) {
+                    send(p, msg);
+                }
+            }
+        } catch (Exception e) {
+            log.log("could not relay transfer: " + e.getMessage());
         }
     }
 

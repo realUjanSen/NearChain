@@ -72,7 +72,7 @@ public class MiningService extends Service {
         NodeHolder.log("mining started");
         Chain chain = NodeHolder.chain();
         while (!stopRequested) {
-            Block block = chain.prepareBlock(address, System.currentTimeMillis() / 1000L);
+            Block block = NodeHolder.prepareMiningBlock(address);
             NodeHolder.recordAttempt(block.header.getNonce(), block.header.difficulty, NodeHolder.hashrate());
             boolean found = false;
             long windowStart = System.currentTimeMillis();

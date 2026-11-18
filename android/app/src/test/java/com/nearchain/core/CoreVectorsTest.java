@@ -29,13 +29,13 @@ public class CoreVectorsTest {
     @Test
     public void chainValidatesPythonBlocks() throws ChainException {
         Chain chain = new Chain(Chain.genesisBlock(1L));
-        Block b1 = chain.prepareBlock(MINER, Consensus.GENESIS_TIMESTAMP + 60);
+        Block b1 = chain.prepareBlock(MINER, java.util.Collections.<Tx>emptyList(), Consensus.GENESIS_TIMESTAMP + 60);
         Miner.mineFull(b1);
         assertEquals(BLOCK1_MERKLE, b1.header.merkleRoot);
         assertEquals(BLOCK1_HASH, b1.hash());
         chain.append(b1);
 
-        Block b2 = chain.prepareBlock(MINER, Consensus.GENESIS_TIMESTAMP + 120);
+        Block b2 = chain.prepareBlock(MINER, java.util.Collections.<Tx>emptyList(), Consensus.GENESIS_TIMESTAMP + 120);
         Miner.mineFull(b2);
         assertEquals(BLOCK2_HASH, b2.hash());
         chain.append(b2);

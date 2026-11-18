@@ -3,12 +3,16 @@ package com.nearchain.net;
 import com.nearchain.core.Block;
 import com.nearchain.core.ChainException;
 import com.nearchain.core.Header;
+import com.nearchain.core.Tx;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-/** Converts blocks to and from the JSON used on the wire. Field names match the Python core's to_dict(). */
+import java.util.ArrayList;
+import java.util.List;
+
+/** Converts blocks and transfers to and from the JSON used on the wire. Field names match the Python core. */
 public final class BlockCodec {
     private BlockCodec() {
     }
@@ -26,10 +30,14 @@ public final class BlockCodec {
         JSONObject coinbase = new JSONObject()
                 .put("miner", block.miner)
                 .put("reward", block.reward);
+        JSONArray txs = new JSONArray();
+        for (Tx t : block.txs) {
+            txs.put(new JSONObject(t.signedJson()));
+        }
         return new JSONObject()
                 .put("header", header)
                 .put("coinbase", coinbase)
-                .put("txs", new JSONArray());
+                .put("txs", txs);
     }
 
     public static Block fromJson(JSONObject json) throws JSONException, ChainException {
@@ -43,10 +51,25 @@ public final class BlockCodec {
                 h.getLong("difficulty"),
                 h.getLong("nonce"));
         JSONObject coinbase = json.getJSONObject("coinbase");
-        JSONArray txs = json.optJSONArray("txs");
-        if (txs != null && txs.length() > 0) {
-            throw new ChainException("blocks with transactions are not supported on Android yet");
+        List<Tx> txs = new ArrayList<>();
+        JSONArray array = json.optJSONArray("txs");
+        if (array != null) {
+            for (int i = 0; i < array.length(); i++) {
+                txs.add(txFromJson(array.getJSONObject(i)));
+            }
         }
-        return new Block(header, coinbase.getString("miner"), coinbase.getLong("reward"));
+        return new Block(header, coinbase.getString("miner"), coinbase.getLong("reward"), txs);
+    }
+
+    public static Tx txFromJson(JSONObject o) throws JSONException {
+        return new Tx(
+                o.getString("sender_pub"),
+                o.getString("sender"),
+                o.getString("recipient"),
+                o.getLong("amount"),
+                o.getLong("fee"),
+                o.getLong("nonce"),
+                o.getString("network"),
+                o.getString("signature"));
     }
 }

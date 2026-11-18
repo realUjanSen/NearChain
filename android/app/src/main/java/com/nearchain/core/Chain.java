@@ -6,14 +6,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Chain with full block validation and cumulative-work chain selection. Blocks cannot yet
- * contain transactions on Android; the network layer rejects blocks that do.
- */
+/** Chain with full block and transfer validation, and cumulative-work chain selection. */
 public final class Chain {
+    private static volatile SignatureVerifier verifier;
+
     private final List<Block> blocks = new ArrayList<>();
     private final List<BigInteger> work = new ArrayList<>();
     private final Map<String, Long> balances = new HashMap<>();
+    private final Map<String, Long> nonces = new HashMap<>();
+
+    /** Set once at startup by the app. Until it is set, every transfer is rejected. */
+    public static void setSignatureVerifier(SignatureVerifier value) {
+        verifier = value;
+    }
 
     public Chain(Block genesis) throws ChainException {
         checkGenesis(genesis);
@@ -24,14 +29,13 @@ public final class Chain {
     private static void checkGenesis(Block genesis) throws ChainException {
         Header h = genesis.header;
         boolean ok = h.height == 0 && h.version == Consensus.PROTOCOL_VERSION
-                && Consensus.ZERO_HASH.equals(h.prevHash) && genesis.reward == 0
+                && Consensus.ZERO_HASH.equals(h.prevHash) && genesis.reward == 0 && genesis.txs.isEmpty()
                 && h.merkleRoot.equals(genesis.computeMerkle()) && h.meetsTarget();
         if (!ok) {
             throw new ChainException("invalid genesis block");
         }
     }
 
-    /** Validates every block from genesis onward. */
     public static Chain fromBlocks(List<Block> list) throws ChainException {
         if (list.isEmpty()) {
             throw new ChainException("empty chain");
@@ -69,13 +73,21 @@ public final class Chain {
     }
 
     public synchronized long balance(String address) {
-        Long value = balances.get(address);
-        return value == null ? 0L : value;
+        return get(balances, address);
     }
 
-    /** Every address that has been paid, with its balance. Copy, so callers cannot change the chain. */
+    public synchronized long nextNonce(String address) {
+        return get(nonces, address);
+    }
+
+    /** Every address that has been paid, with its balance. A copy. */
     public synchronized Map<String, Long> balances() {
         return new HashMap<>(balances);
+    }
+
+    /** The next expected nonce for every sender. A copy. */
+    public synchronized Map<String, Long> nonces() {
+        return new HashMap<>(nonces);
     }
 
     public synchronized List<Block> blocks() {
@@ -92,15 +104,73 @@ public final class Chain {
         return Difficulty.next(samples);
     }
 
-    /** Build an unmined block on the current tip. The caller mines it. */
-    public synchronized Block prepareBlock(String miner, long timestamp) {
+    /**
+     * Checks one transfer against the given balances and nonces. Returns null if valid, otherwise the reason.
+     */
+    public static String validateTransfer(Tx tx, Map<String, Long> bal, Map<String, Long> non) {
+        if (!Consensus.NETWORK_ID.equals(tx.network)) {
+            return "transaction is for a different network";
+        }
+        if (tx.amount <= 0 || tx.amount > Consensus.MAX_SUPPLY) {
+            return "invalid amount";
+        }
+        if (tx.fee < Consensus.MIN_FEE) {
+            return "fee is below the minimum";
+        }
+        if (!TxCodec.isValidAddress(tx.sender) || !TxCodec.isValidAddress(tx.recipient)) {
+            return "invalid address";
+        }
+        if (tx.sender.equals(tx.recipient)) {
+            return "cannot send to yourself";
+        }
+        if (!tx.sender.equals(TxCodec.addressFromPub(tx.senderPub))) {
+            return "sender does not match the key";
+        }
+        if (tx.nonce != get(non, tx.sender)) {
+            return "wrong nonce";
+        }
+        if (get(bal, tx.sender) < tx.amount + tx.fee) {
+            return "insufficient balance";
+        }
+        SignatureVerifier check = verifier;
+        if (check == null || !check.verify(tx.senderPub, tx.signingJson(), tx.signature)) {
+            return "bad signature";
+        }
+        return null;
+    }
+
+    /** Applies a transfer that has already been validated. Returns its fee. */
+    public static long applyTransfer(Tx tx, Map<String, Long> bal, Map<String, Long> non) {
+        bal.put(tx.sender, get(bal, tx.sender) - tx.amount - tx.fee);
+        bal.put(tx.recipient, get(bal, tx.recipient) + tx.amount);
+        non.put(tx.sender, get(non, tx.sender) + 1);
+        return tx.fee;
+    }
+
+    private static long get(Map<String, Long> map, String key) {
+        Long value = map.get(key);
+        return value == null ? 0L : value;
+    }
+
+    /** Builds an unmined block on the tip, including the candidate transfers that are valid, in order. */
+    public synchronized Block prepareBlock(String miner, List<Tx> candidates, long timestamp) {
         Block tip = tip();
         long height = tip.header.height + 1;
-        long reward = Emission.rewardAt(height);
+        Map<String, Long> bal = new HashMap<>(balances);
+        Map<String, Long> non = new HashMap<>(nonces);
+        List<Tx> included = new ArrayList<>();
+        long fees = 0;
+        for (Tx tx : candidates) {
+            if (validateTransfer(tx, bal, non) == null) {
+                fees += applyTransfer(tx, bal, non);
+                included.add(tx);
+            }
+        }
+        long reward = Emission.rewardAt(height) + fees;
         Header header = new Header(Consensus.PROTOCOL_VERSION, height, tip.hash(),
-                Block.coinbaseId(miner, reward), Math.max(timestamp, tip.header.timestamp + 1),
-                expectedDifficulty(), 0L);
-        return new Block(header, miner, reward);
+                Block.merkleRootFor(miner, reward, included),
+                Math.max(timestamp, tip.header.timestamp + 1), expectedDifficulty(), 0L);
+        return new Block(header, miner, reward, included);
     }
 
     public synchronized void append(Block block) throws ChainException {
@@ -125,23 +195,35 @@ public final class Chain {
         if (!h.merkleRoot.equals(block.computeMerkle())) {
             throw new ChainException("merkle root does not match block contents");
         }
-        long reward = Emission.rewardAt(h.height);
-        if (block.reward != reward) {
-            throw new ChainException("bad block reward " + block.reward + ", expected " + reward);
-        }
         if (!h.meetsTarget()) {
             throw new ChainException("proof of work does not meet the target");
         }
+
+        Map<String, Long> bal = new HashMap<>(balances);
+        Map<String, Long> non = new HashMap<>(nonces);
+        long fees = 0;
+        for (Tx tx : block.txs) {
+            String reason = validateTransfer(tx, bal, non);
+            if (reason != null) {
+                throw new ChainException("bad transfer: " + reason);
+            }
+            fees += applyTransfer(tx, bal, non);
+        }
+        long reward = Emission.rewardAt(h.height);
+        if (block.reward != reward + fees) {
+            throw new ChainException("bad block reward " + block.reward + ", expected " + (reward + fees));
+        }
+        bal.put(block.miner, get(bal, block.miner) + block.reward);
+
         blocks.add(block);
         work.add(cumulativeWork().add(BigInteger.valueOf(h.difficulty)));
-        Long previous = balances.get(block.miner);
-        balances.put(block.miner, (previous == null ? 0L : previous) + block.reward);
+        balances.clear();
+        balances.putAll(bal);
+        nonces.clear();
+        nonces.putAll(non);
     }
 
-    /**
-     * Adopt the candidate chain if it is fully valid, starts from the same genesis, and has
-     * more cumulative work than this chain. Returns true when the chain was replaced.
-     */
+    /** Adopt the candidate chain if it is fully valid, has the same genesis, and more cumulative work. */
     public synchronized boolean consider(List<Block> candidateBlocks) throws ChainException {
         Chain candidate = fromBlocks(candidateBlocks);
         if (!candidate.blocks.get(0).hash().equals(blocks.get(0).hash())) {
@@ -156,6 +238,8 @@ public final class Chain {
         work.addAll(candidate.work);
         balances.clear();
         balances.putAll(candidate.balances);
+        nonces.clear();
+        nonces.putAll(candidate.nonces);
         return true;
     }
 }

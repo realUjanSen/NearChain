@@ -26,6 +26,7 @@ import com.nearchain.core.Consensus;
 
 import com.nearchain.core.Chain;
 import com.nearchain.net.Log;
+import com.nearchain.core.Tx;
 import com.nearchain.core.TxCodec;
 import com.nearchain.core.Sha;
 import com.nearchain.wallet.Wallet;
@@ -535,17 +536,20 @@ public class MainActivity extends Activity {
             toast("Not enough CDC. Balance is " + balance + ".");
             return;
         }
-        // Transfers are not yet included in Android blocks, so the confirmed nonce is 0.
-        long nonce = 0L;
+        long nonce = NodeHolder.pendingNonce(wallet.address());
         String signing = TxCodec.signingJson(wallet.publicKeyHex(), wallet.address(), recipient,
-                amount, fee, nonce, com.nearchain.core.Consensus.NETWORK_ID);
+                amount, fee, nonce, Consensus.NETWORK_ID);
         String signatureHex = Sha.toHex(wallet.sign(signing.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-        String signed = TxCodec.signedJson(wallet.publicKeyHex(), wallet.address(), recipient,
-                amount, fee, nonce, com.nearchain.core.Consensus.NETWORK_ID, signatureHex);
-        String txId = TxCodec.txId(signed);
-        signedView.setText("Signed transfer. Tx ID: " + txId + "\n\n" + signed);
-        NodeHolder.log("signed transfer of " + amount + " CDC to " + recipient + " (tx " + txId.substring(0, 12) + "...)");
-        NodeHolder.log("transfer not sent: the Android client cannot relay transfers to peers yet");
+        Tx tx = new Tx(wallet.publicKeyHex(), wallet.address(), recipient, amount, fee, nonce,
+                Consensus.NETWORK_ID, signatureHex);
+        String reason = NodeHolder.submitTransfer(tx);
+        if (reason != null) {
+            toast("Transfer refused: " + reason);
+            NodeHolder.log("transfer refused: " + reason);
+            return;
+        }
+        signedView.setText("Sent to the network. Tx ID: " + tx.id() + "\n\n" + tx.signedJson());
+        toast("Transfer sent. It confirms when a miner includes it in a block.");
     }
 
     // ----- display -----

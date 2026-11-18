@@ -8,6 +8,7 @@ import android.widget.TextView;
 
 import com.nearchain.core.Block;
 import com.nearchain.core.Chain;
+import com.nearchain.core.Tx;
 import com.nearchain.wallet.WalletStore;
 
 import java.util.ArrayList;
@@ -77,8 +78,8 @@ public class ExplorerActivity extends Activity {
         int shown = 0;
         for (int i = blocks.size() - 1; i >= 0 && shown < MAX_BLOCKS_SHOWN; i--, shown++) {
             Block b = blocks.get(i);
-            blockText.append(String.format("#%d  %s  miner %s  reward %,d  txs 0%n",
-                    b.header.height, b.hash().substring(0, 12), shortAddress(b.miner), b.reward));
+            blockText.append(String.format("#%d  %s  miner %s  reward %,d  txs %d%n",
+                    b.header.height, b.hash().substring(0, 12), shortAddress(b.miner), b.reward, b.txs.size()));
         }
         blocksView.setText(blockText.length() == 0 ? "No blocks." : blockText.toString());
 
@@ -88,6 +89,10 @@ public class ExplorerActivity extends Activity {
             if (b.reward > 0) {
                 tx.append(String.format("#%d  mining reward  %s  +%,d CDC%n",
                         b.header.height, shortAddress(b.miner), b.reward));
+            }
+            for (Tx t : b.txs) {
+                tx.append(String.format("#%d  transfer  %s -> %s  %,d CDC  fee %,d%n",
+                        b.header.height, shortAddress(t.sender), shortAddress(t.recipient), t.amount, t.fee));
             }
         }
         transactionsView.setText(tx.length() == 0 ? "No transactions yet." : tx.toString());

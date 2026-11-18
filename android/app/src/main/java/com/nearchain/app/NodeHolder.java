@@ -1,14 +1,21 @@
 package com.nearchain.app;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
+import android.widget.Toast;
 
 import com.nearchain.core.Block;
 import com.nearchain.core.Chain;
 import com.nearchain.core.ChainException;
 import com.nearchain.core.Consensus;
 import com.nearchain.core.Emission;
+import com.nearchain.core.Mempool;
+import com.nearchain.core.Tx;
+import com.nearchain.net.Events;
 import com.nearchain.net.NetNode;
 import com.nearchain.wallet.Wallet;
+import com.nearchain.wallet.WalletStore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,7 +28,9 @@ import java.util.List;
 public final class NodeHolder {
     static final int PORT = 8333;
 
+    private static Context appContext;
     private static Chain chain;
+    private static Mempool mempool;
     private static NetNode net;
     private static Discovery discovery;
     private static boolean networkStarted;
@@ -32,10 +41,28 @@ public final class NodeHolder {
     private static volatile long currentDifficulty;
     private static volatile double hashrate;
     private static volatile int blocksMined;
-    private static final List<String> log = new ArrayList<>();
     private static volatile int logLimit = 200;
+    private static final List<String> log = new ArrayList<>();
+
+    private static final Events EVENTS = new Events() {
+        @Override
+        public void transferPending(Tx tx) {
+            notifyIfMine(tx, "Incoming " + tx.amount + " CDC from " + short_(tx.sender)
+                    + ". Waiting for a block to confirm it.");
+        }
+
+        @Override
+        public void transferConfirmed(Tx tx) {
+            notifyIfMine(tx, "Received " + tx.amount + " CDC from " + short_(tx.sender) + ". Confirmed in a block.");
+        }
+    };
 
     private NodeHolder() {
+    }
+
+    /** Called once at startup. Gives the holder a context for toasts and the wallet file. */
+    public static synchronized void attach(Context context) {
+        appContext = context.getApplicationContext();
     }
 
     public static synchronized void init() {
@@ -45,7 +72,8 @@ public final class NodeHolder {
             } catch (ChainException e) {
                 throw new IllegalStateException("genesis failed to validate", e);
             }
-            net = new NetNode(chain, NodeHolder::log);
+            mempool = new Mempool(chain);
+            net = new NetNode(chain, mempool, NodeHolder::log, EVENTS);
         }
     }
 
@@ -83,14 +111,44 @@ public final class NodeHolder {
         wallet = value;
     }
 
-    /** Add a mined block to the chain and send it to peers. */
+    /** Builds the next block on the tip, including pending transfers. The caller mines it. */
+    public static Block prepareMiningBlock(String miner) {
+        init();
+        synchronized (chain) {
+            return chain.prepareBlock(miner, mempool.pending(), System.currentTimeMillis() / 1000L);
+        }
+    }
+
+    /** Adds a block this phone mined to the chain, and sends it to peers. */
     public static void submitMined(Block block) throws ChainException {
+        init();
         synchronized (chain) {
             chain.append(block);
         }
+        mempool.removeMined(block);
         net.broadcastBlock(block, null);
         blocksMined++;
         log("mined block " + block.header.height + " (reward " + block.reward + " CDC)");
+        for (Tx t : block.txs) {
+            EVENTS.transferConfirmed(t);
+        }
+    }
+
+    /** Adds a signed transfer to the pending pool and sends it to peers. Returns null, or the reason it was refused. */
+    public static String submitTransfer(Tx tx) {
+        init();
+        String reason = mempool.add(tx);
+        if (reason == null) {
+            net.broadcastTx(tx, null);
+            log("transfer sent: " + tx.amount + " CDC to " + tx.recipient + " (waiting for a block)");
+        }
+        return reason;
+    }
+
+    /** The nonce the next transfer from this address must use. */
+    public static long pendingNonce(String address) {
+        init();
+        return mempool.pendingNonce(address);
     }
 
     public static synchronized void log(String text) {
@@ -157,7 +215,7 @@ public final class NodeHolder {
         return lastEvent;
     }
 
-    /** Rewards paid to this address, for the Trader Mode history. */
+    /** Mining rewards and transfers for this address, for the Trader Mode history. */
     public static String history(String address) {
         StringBuilder sb = new StringBuilder();
         for (Block b : chain().blocks()) {
@@ -165,11 +223,41 @@ public final class NodeHolder {
                 sb.append("#").append(b.header.height).append("  mined  +")
                         .append(b.reward).append(" CDC\n");
             }
+            for (Tx t : b.txs) {
+                if (t.sender.equals(address)) {
+                    sb.append("#").append(b.header.height).append("  sent  -")
+                            .append(t.amount).append(" CDC to ").append(short_(t.recipient)).append('\n');
+                } else if (t.recipient.equals(address)) {
+                    sb.append("#").append(b.header.height).append("  received  +")
+                            .append(t.amount).append(" CDC from ").append(short_(t.sender)).append('\n');
+                }
+            }
         }
-        return sb.length() == 0 ? "No rewards yet." : sb.toString();
+        return sb.length() == 0 ? "No transactions yet." : sb.toString();
     }
 
     public static long rewardForNextBlock() {
         return Emission.rewardAt(chain().height() + 1);
+    }
+
+    /** Shows a toast on the main thread. Safe to call from any thread. */
+    static void toast(String text) {
+        if (appContext == null) {
+            return;
+        }
+        new Handler(Looper.getMainLooper()).post(() -> Toast.makeText(appContext, text, Toast.LENGTH_LONG).show());
+    }
+
+    /** Logs the event and shows a toast, but only when the transfer is to this phone's wallet. */
+    private static void notifyIfMine(Tx tx, String text) {
+        String me = appContext == null ? null : WalletStore.address(appContext);
+        if (me != null && me.equals(tx.recipient)) {
+            log(text);
+            toast(text);
+        }
+    }
+
+    private static String short_(String address) {
+        return address.length() > 14 ? address.substring(0, 14) + "..." : address;
     }
 }
