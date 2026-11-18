@@ -73,6 +73,11 @@ public final class Chain {
         return value == null ? 0L : value;
     }
 
+    /** Every address that has been paid, with its balance. Copy, so callers cannot change the chain. */
+    public synchronized Map<String, Long> balances() {
+        return new HashMap<>(balances);
+    }
+
     public synchronized List<Block> blocks() {
         return new ArrayList<>(blocks);
     }

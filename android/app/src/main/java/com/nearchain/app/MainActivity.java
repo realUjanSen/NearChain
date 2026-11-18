@@ -11,7 +11,10 @@ import android.text.TextWatcher;
 import android.text.method.PasswordTransformationMethod;
 import android.view.View;
 import android.widget.Button;
+import android.graphics.Bitmap;
+import android.content.Intent;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -53,6 +56,8 @@ public class MainActivity extends Activity {
     private TextView signedView;
     private TextView updateStatusView;
     private Button startButton;
+    private ImageView qrView;
+    private boolean qrShown;
     private Button stopButton;
     private ScrollView logScroll;
     private EditText logLimitEdit;
@@ -114,6 +119,10 @@ public class MainActivity extends Activity {
         startButton.setOnClickListener(v -> startMining());
         stopButton.setOnClickListener(v -> MiningService.stop(this));
         ((Button) findViewById(R.id.deleteWalletButton)).setOnClickListener(v -> confirmDeleteWallet());
+        qrView = findViewById(R.id.qrView);
+        ((Button) findViewById(R.id.showQrButton)).setOnClickListener(v -> toggleQr());
+        ((Button) findViewById(R.id.explorerButton)).setOnClickListener(
+                v -> startActivity(new Intent(this, ExplorerActivity.class)));
         setupLogLimit();
         ((Button) findViewById(R.id.createWalletButton)).setOnClickListener(v -> createWallet());
         ((Button) findViewById(R.id.unlockButton)).setOnClickListener(v -> unlockWallet());
@@ -159,6 +168,29 @@ public class MainActivity extends Activity {
                 }
             }
         });
+    }
+
+    /** Shows the wallet address as a QR code so another phone can scan it and send CDC here. */
+    private void toggleQr() {
+        String address = WalletStore.address(this);
+        if (address == null) {
+            toast("Create a wallet first.");
+            return;
+        }
+        if (qrShown) {
+            qrView.setVisibility(View.GONE);
+            qrShown = false;
+            return;
+        }
+        try {
+            Bitmap code = QrCodes.encode(address, 660);
+            qrView.setImageBitmap(code);
+            qrView.setVisibility(View.VISIBLE);
+            qrShown = true;
+            toast("Scan this code to send CDC to " + address);
+        } catch (Exception e) {
+            toast("Could not make the QR code: " + e.getMessage());
+        }
     }
 
     // ----- wallet deletion -----

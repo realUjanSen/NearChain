@@ -52,5 +52,7 @@ android {
 dependencies {
     // Ed25519 signing and scrypt for Android versions before 13, where the platform lacks them.
     implementation 'org.bouncycastle:bcprov-jdk18on:1.78.1'
+    // QR code generation for the wallet address.
+    implementation 'com.google.zxing:core:3.5.3'
     testImplementation 'junit:junit:4.13.2'
 }
