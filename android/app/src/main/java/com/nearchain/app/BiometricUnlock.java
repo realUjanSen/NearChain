@@ -126,10 +126,12 @@ public final class BiometricUnlock {
     @TargetApi(28)
     public static void authenticate(Activity activity, Cipher cipher, String reason, Callback callback) {
         Executor mainThread = activity.getMainExecutor();
+        // setNegativeButton(text, executor, listener) exists from Android 9. The text-only form needs Android 10.
         BiometricPrompt prompt = new BiometricPrompt.Builder(activity)
                 .setTitle("NearChain")
                 .setDescription(reason)
-                .setNegativeButtonText("Use password")
+                .setNegativeButton("Use password", mainThread,
+                        (dialog, which) -> callback.onFailed("Use your password instead."))
                 .build();
         prompt.authenticate(new BiometricPrompt.CryptoObject(cipher), new CancellationSignal(), mainThread,
                 new BiometricPrompt.AuthenticationCallback() {
