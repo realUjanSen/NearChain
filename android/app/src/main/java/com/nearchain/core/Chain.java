@@ -95,13 +95,8 @@ public final class Chain {
     }
 
     public synchronized long expectedDifficulty() {
-        int start = Math.max(0, blocks.size() - (int) (Consensus.LWMA_WINDOW + 1));
-        List<Difficulty.Sample> samples = new ArrayList<>();
-        for (int i = start; i < blocks.size(); i++) {
-            Block b = blocks.get(i);
-            samples.add(new Difficulty.Sample(b.header.timestamp, b.header.difficulty));
-        }
-        return Difficulty.next(samples);
+        Block tip = tip();
+        return Difficulty.afterBlock(tip.header.height, tip.header.difficulty);
     }
 
     /**

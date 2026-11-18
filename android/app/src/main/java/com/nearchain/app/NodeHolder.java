@@ -140,7 +140,10 @@ public final class NodeHolder {
         String reason = mempool.add(tx);
         if (reason == null) {
             net.broadcastTx(tx, null);
-            log("transfer sent: " + tx.amount + " CDC to " + tx.recipient + " (waiting for a block)");
+            int peers = net.peerCount();
+            log("transfer queued: " + tx.amount + " CDC to " + tx.recipient + (peers == 0
+                    ? ". No peers are connected, so it will be sent when one connects."
+                    : ". Sent to " + peers + " peer(s). Waiting for a miner to include it."));
         }
         return reason;
     }

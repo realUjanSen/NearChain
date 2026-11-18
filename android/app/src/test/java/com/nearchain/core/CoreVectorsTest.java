@@ -59,15 +59,12 @@ public class CoreVectorsTest {
     }
 
     @Test
-    public void difficultyVectors() {
-        List<Difficulty.Sample> fast = new ArrayList<>();
-        List<Difficulty.Sample> gap = new ArrayList<>();
-        for (int i = 0; i < 81; i++) {
-            fast.add(new Difficulty.Sample(Consensus.GENESIS_TIMESTAMP + i * 30L, 5000L));
-            gap.add(new Difficulty.Sample(Consensus.GENESIS_TIMESTAMP + i * 10000L, 5000L));
-        }
-        assertEquals(10000L, Difficulty.next(fast));
-        assertEquals(833L, Difficulty.next(gap));
+    public void difficultyRisesOnePercentEvery100Blocks() {
+        assertEquals(5000L, Difficulty.afterBlock(99L, 5000L));
+        assertEquals(5050L, Difficulty.afterBlock(100L, 5000L));
+        assertEquals(5100L, Difficulty.afterBlock(200L, 5050L));
+        assertEquals(5000L, Difficulty.afterBlock(0L, 5000L));
+        assertEquals(Consensus.MAX_DIFFICULTY, Difficulty.afterBlock(100L, Consensus.MAX_DIFFICULTY));
     }
 
     @Test

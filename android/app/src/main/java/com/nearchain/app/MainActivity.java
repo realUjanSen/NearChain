@@ -59,6 +59,7 @@ public class MainActivity extends Activity {
     private TextView signedView;
     private TextView updateStatusView;
     private Button startButton;
+    private Button walletToggleButton;
     private static final int REQUEST_SCAN = 11;
     private ImageView qrView;
     private boolean qrShown;
@@ -123,11 +124,9 @@ public class MainActivity extends Activity {
         startButton.setOnClickListener(v -> startMining());
         stopButton.setOnClickListener(v -> MiningService.stop(this));
         ((Button) findViewById(R.id.deleteWalletButton)).setOnClickListener(v -> confirmDeleteWallet());
-        ((Button) findViewById(R.id.lockButton)).setOnClickListener(v -> {
-            NodeHolder.setWallet(null);
-            toast("Wallet locked.");
-            NodeHolder.log("wallet locked");
-        });
+        ((Button) findViewById(R.id.lockButton)).setOnClickListener(v -> lockWallet());
+        walletToggleButton = findViewById(R.id.walletToggleButton);
+        walletToggleButton.setOnClickListener(v -> toggleWallet());
         qrView = findViewById(R.id.qrView);
         ((Button) findViewById(R.id.showQrButton)).setOnClickListener(v -> toggleQr());
         ((Button) findViewById(R.id.explorerButton)).setOnClickListener(
@@ -139,6 +138,31 @@ public class MainActivity extends Activity {
         ((Button) findViewById(R.id.unlockButton)).setOnClickListener(v -> unlockWallet());
         ((Button) findViewById(R.id.sendButton)).setOnClickListener(v -> buildSignedTransfer());
         showPanel(true);
+    }
+
+    /** Green "Unlock wallet" when locked, red "Lock wallet" when unlocked. Creates a wallet if none exists. */
+    private void toggleWallet() {
+        if (NodeHolder.wallet() != null) {
+            lockWallet();
+        } else if (WalletStore.exists(this)) {
+            unlockWallet();
+        } else {
+            createWallet();
+        }
+    }
+
+    private void lockWallet() {
+        NodeHolder.setWallet(null);
+        toast("Wallet locked.");
+        NodeHolder.log("wallet locked");
+    }
+
+    private void updateWalletToggle() {
+        boolean unlocked = NodeHolder.wallet() != null;
+        boolean exists = WalletStore.exists(this);
+        walletToggleButton.setText(unlocked ? "Lock wallet" : exists ? "Unlock wallet" : "Create wallet");
+        walletToggleButton.setBackgroundColor(unlocked ? 0xFFC62828 : 0xFF2E7D32);
+        walletToggleButton.setTextColor(0xFFFFFFFF);
     }
 
     /** Start is green while idle; Stop is red while mining. The inactive button is grey. */
@@ -548,8 +572,11 @@ public class MainActivity extends Activity {
             NodeHolder.log("transfer refused: " + reason);
             return;
         }
-        signedView.setText("Sent to the network. Tx ID: " + tx.id() + "\n\n" + tx.signedJson());
-        toast("Transfer sent. It confirms when a miner includes it in a block.");
+        int peers = NodeHolder.net().peerCount();
+        signedView.setText("Queued. Tx ID: " + tx.id() + "\n\n" + tx.signedJson());
+        toast(peers == 0
+                ? "Queued. No peers are connected, so it will be sent when one connects."
+                : "Sent to " + peers + " peer(s). It confirms when a miner includes it in a block.");
     }
 
     // ----- display -----
@@ -568,6 +595,7 @@ public class MainActivity extends Activity {
         hashrateView.setText(String.format("Hash rate: %,.0f hashes/s", NodeHolder.hashrate()));
         nonceView.setText("Current nonce: " + String.format("%,d", NodeHolder.currentNonce()));
         updateMiningButtons();
+        updateWalletToggle();
         String logText = NodeHolder.logText();
         if (!logText.equals(logView.getText().toString())) {
             logView.setText(logText);

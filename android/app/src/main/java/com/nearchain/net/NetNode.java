@@ -52,6 +52,9 @@ public final class NetNode {
         Thread accept = new Thread(this::acceptLoop, "nearchain-accept");
         accept.setDaemon(true);
         accept.start();
+        Thread rebroadcast = new Thread(this::rebroadcastLoop, "nearchain-rebroadcast");
+        rebroadcast.setDaemon(true);
+        rebroadcast.start();
         log.log("listening for peers on port " + socket.getLocalPort());
         return socket.getLocalPort();
     }
@@ -68,6 +71,24 @@ public final class NetNode {
         }, "nearchain-connect");
         t.setDaemon(true);
         t.start();
+    }
+
+    public int peerCount() {
+        return peers.size();
+    }
+
+    /** Pending transfers are sent again every 30 seconds until a block confirms them. */
+    private void rebroadcastLoop() {
+        while (running) {
+            try {
+                Thread.sleep(30000L);
+            } catch (InterruptedException e) {
+                return;
+            }
+            for (Tx t : mempool.pending()) {
+                broadcastTx(t, null);
+            }
+        }
     }
 
     /** One line per peer, for the UI. */
@@ -98,6 +119,10 @@ public final class NetNode {
         peers.add(peer);
         log.log("peer connected: " + peer.name());
         send(peer, hello());
+        // A peer that connects later still needs transfers that were sent before it arrived.
+        for (Tx t : mempool.pending()) {
+            send(peer, txMessage(t));
+        }
         Thread reader = new Thread(() -> readLoop(peer), "nearchain-peer");
         reader.setDaemon(true);
         reader.start();
@@ -208,6 +233,9 @@ public final class NetNode {
     private void onTransfer(Peer peer, JSONObject msg) throws Exception {
         Tx tx = BlockCodec.txFromJson(msg.getJSONObject("tx"));
         String reason = mempool.add(tx);
+        if ("already pending".equals(reason)) {
+            return; // peers re-send pending transfers; nothing new to do
+        }
         if (reason != null) {
             log.log("rejected transfer from " + peer.name() + ": " + reason);
             return;
@@ -234,7 +262,7 @@ public final class NetNode {
     /** Send a transfer to every peer except `except`. */
     public void broadcastTx(Tx tx, Peer except) {
         try {
-            JSONObject msg = new JSONObject().put("type", "tx").put("tx", new JSONObject(tx.signedJson()));
+            JSONObject msg = txMessage(tx);
             for (Peer p : peers) {
                 if (p != except) {
                     send(p, msg);
@@ -243,6 +271,10 @@ public final class NetNode {
         } catch (Exception e) {
             log.log("could not relay transfer: " + e.getMessage());
         }
+    }
+
+    private static JSONObject txMessage(Tx tx) throws org.json.JSONException {
+        return new JSONObject().put("type", "tx").put("tx", new JSONObject(tx.signedJson()));
     }
 
     private JSONObject hello() throws IOException {
