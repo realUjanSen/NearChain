@@ -181,6 +181,23 @@
                 android:textColor="#FFFFFFFF"
                 android:text="Delete wallet" />
 
+            <Button
+                android:id="@+id/showQrButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Show my address as QR code" />
+            <ImageView
+                android:id="@+id/qrView"
+                android:layout_width="220dp"
+                android:layout_height="220dp"
+                android:layout_gravity="center_horizontal"
+                android:visibility="gone" />
+            <Button
+                android:id="@+id/explorerButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Open blockchain viewer" />
+
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
