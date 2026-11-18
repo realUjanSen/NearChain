@@ -13,13 +13,13 @@ public final class Consensus {
     public static final long MAX_SOLVETIME = 6L * TARGET_BLOCK_TIME;
     public static final long MIN_DIFFICULTY = 1L;
     public static final long MAX_DIFFICULTY = 1L << 48;
-    public static final long GENESIS_DIFFICULTY = 1L << 16;
+    public static final long GENESIS_DIFFICULTY = 135_000L;
     public static final long GENESIS_TIMESTAMP = 1_700_000_000L;
     /** Smallest fee a transfer may pay. Matches MIN_FEE in src/nearchain/consensus.py. */
     public static final long MIN_FEE = 1L;
 
-    /** Difficulty rises by DIFFICULTY_STEP_PERCENT every DIFFICULTY_STEP_BLOCKS blocks. */
-    public static final long DIFFICULTY_STEP_BLOCKS = 100L;
+    /** Difficulty rises by DIFFICULTY_STEP_PERCENT every DIFFICULTY_STEP_BLOCKS blocks. 135,000 hashes at 90,000 hashes/s is about 1.5 s per block. */
+    public static final long DIFFICULTY_STEP_BLOCKS = 10L;
     public static final long DIFFICULTY_STEP_PERCENT = 1L;
 
     public static final String ZERO_HASH = "0000000000000000000000000000000000000000000000000000000000000000";

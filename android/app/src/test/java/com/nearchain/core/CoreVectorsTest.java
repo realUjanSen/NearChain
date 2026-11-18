@@ -59,10 +59,10 @@ public class CoreVectorsTest {
     }
 
     @Test
-    public void difficultyRisesOnePercentEvery100Blocks() {
-        assertEquals(5000L, Difficulty.afterBlock(99L, 5000L));
-        assertEquals(5050L, Difficulty.afterBlock(100L, 5000L));
-        assertEquals(5100L, Difficulty.afterBlock(200L, 5050L));
+    public void difficultyRisesOnePercentEvery10Blocks() {
+        assertEquals(5000L, Difficulty.afterBlock(9L, 5000L));
+        assertEquals(5050L, Difficulty.afterBlock(10L, 5000L));
+        assertEquals(5100L, Difficulty.afterBlock(20L, 5050L));
         assertEquals(5000L, Difficulty.afterBlock(0L, 5000L));
         assertEquals(Consensus.MAX_DIFFICULTY, Difficulty.afterBlock(100L, Consensus.MAX_DIFFICULTY));
     }
