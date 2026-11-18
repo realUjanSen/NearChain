@@ -122,6 +122,10 @@ public class MainActivity extends Activity {
         startButton.setOnClickListener(v -> startMining());
         stopButton.setOnClickListener(v -> MiningService.stop(this));
         ((Button) findViewById(R.id.deleteWalletButton)).setOnClickListener(v -> confirmDeleteWallet());
+        ((Button) findViewById(R.id.lockButton)).setOnClickListener(v -> {
+            NodeHolder.setWallet(null);
+            toast("Wallet locked.");
+        });
         qrView = findViewById(R.id.qrView);
         ((Button) findViewById(R.id.showQrButton)).setOnClickListener(v -> toggleQr());
         ((Button) findViewById(R.id.explorerButton)).setOnClickListener(
@@ -331,6 +335,9 @@ public class MainActivity extends Activity {
                             Wallet wallet = WalletStore.create(this, password);
                             NodeHolder.setWallet(wallet);
                             toast("Wallet created. Address: " + wallet.address());
+                            if (BiometricUnlock.supported()) {
+                                runOnUiThread(() -> offerBiometric(password));
+                            }
                         } catch (WalletStore.WalletException e) {
                             toast(e.getMessage());
                         }
@@ -556,6 +563,7 @@ public class MainActivity extends Activity {
         addressView.setText(address == null ? "No wallet yet" : "Address: " + address);
         walletStatusView.setText(wallet != null ? "Wallet unlocked"
                 : address == null ? "No wallet. Create one to start mining." : "Wallet locked");
+        walletStatusView.setTextColor(wallet != null ? 0xFF2E7D32 : 0xFFC62828);
         if (address != null) {
             balanceView.setText(String.format("Balance: %,d CDC", chain.balance(address)));
             historyView.setText(NodeHolder.history(address));
