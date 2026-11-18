@@ -1,6 +1,6 @@
 # NearChain
 
-NearChain is a small proof-of-work cryptocurrency for Android. Phones on the same Wi-Fi network mine blocks, send CDC (NearChainCoin) to each other, and sync one shared chain. It is built for demonstration, not for real money.
+NearChain is a small proof-of-work cryptocurrency for Android. Phones on the same Wi-Fi/Bluetooth network mine blocks, send CDC (NearChainCoin) to each other, and sync one shared chain. It is built for proof of concept.
 
 ## What the app does
 
