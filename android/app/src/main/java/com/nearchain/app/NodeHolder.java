@@ -33,6 +33,7 @@ public final class NodeHolder {
     private static volatile double hashrate;
     private static volatile int blocksMined;
     private static final List<String> log = new ArrayList<>();
+    private static volatile int logLimit = 200;
 
     private NodeHolder() {
     }
@@ -95,10 +96,18 @@ public final class NodeHolder {
     public static synchronized void log(String text) {
         String stamped = android.text.format.DateFormat.format("HH:mm:ss", System.currentTimeMillis()) + "  " + text;
         log.add(stamped);
-        if (log.size() > 300) {
-            log.subList(0, 100).clear();
+        while (log.size() > logLimit) {
+            log.remove(0);
         }
         lastEvent = text;
+    }
+
+    /** How many log lines to keep. The user sets this in the app. */
+    public static synchronized void setLogLimit(int lines) {
+        logLimit = lines;
+        while (log.size() > logLimit) {
+            log.remove(0);
+        }
     }
 
     public static synchronized String logText() {

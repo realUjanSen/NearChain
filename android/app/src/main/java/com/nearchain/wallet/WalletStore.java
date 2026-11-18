@@ -141,6 +141,11 @@ public final class WalletStore {
         return cipher.doFinal(ciphertext);
     }
 
+    /** Removes the wallet file. Coins held by this address are lost unless the key was backed up. */
+    public static boolean delete(Context context) {
+        return !exists(context) || file(context).delete();
+    }
+
     private static JSONObject readJson(Context context) throws Exception {
         // FileInputStream rather than java.nio.file.Files, which needs Android API 26.
         java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();

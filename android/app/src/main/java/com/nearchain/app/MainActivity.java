@@ -5,12 +5,15 @@ import android.app.AlertDialog;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.text.method.PasswordTransformationMethod;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -49,6 +52,10 @@ public class MainActivity extends Activity {
     private EditText feeEdit;
     private TextView signedView;
     private TextView updateStatusView;
+    private Button startButton;
+    private Button stopButton;
+    private ScrollView logScroll;
+    private EditText logLimitEdit;
     private EditText hostEdit;
     private TextView peersView;
 
@@ -100,12 +107,82 @@ public class MainActivity extends Activity {
 
         ((Button) findViewById(R.id.tabMiner)).setOnClickListener(v -> showPanel(true));
         ((Button) findViewById(R.id.tabTrader)).setOnClickListener(v -> showPanel(false));
-        ((Button) findViewById(R.id.startButton)).setOnClickListener(v -> startMining());
-        ((Button) findViewById(R.id.stopButton)).setOnClickListener(v -> MiningService.stop(this));
+        startButton = findViewById(R.id.startButton);
+        stopButton = findViewById(R.id.stopButton);
+        logScroll = findViewById(R.id.logScroll);
+        logLimitEdit = findViewById(R.id.logLimitEdit);
+        startButton.setOnClickListener(v -> startMining());
+        stopButton.setOnClickListener(v -> MiningService.stop(this));
+        ((Button) findViewById(R.id.deleteWalletButton)).setOnClickListener(v -> confirmDeleteWallet());
+        setupLogLimit();
         ((Button) findViewById(R.id.createWalletButton)).setOnClickListener(v -> createWallet());
         ((Button) findViewById(R.id.unlockButton)).setOnClickListener(v -> unlockWallet());
         ((Button) findViewById(R.id.sendButton)).setOnClickListener(v -> buildSignedTransfer());
         showPanel(true);
+    }
+
+    /** Start is green while idle; Stop is red while mining. The inactive button is grey. */
+    private void updateMiningButtons() {
+        boolean running = NodeHolder.isMining();
+        startButton.setEnabled(!running);
+        startButton.setBackgroundColor(running ? 0xFF9E9E9E : 0xFF2E7D32);
+        startButton.setTextColor(0xFFFFFFFF);
+        stopButton.setEnabled(running);
+        stopButton.setBackgroundColor(running ? 0xFFC62828 : 0xFF9E9E9E);
+        stopButton.setTextColor(0xFFFFFFFF);
+    }
+
+    /** Loads the saved line limit and saves changes as the user types. */
+    private void setupLogLimit() {
+        int limit = getSharedPreferences("nearchain", MODE_PRIVATE).getInt("log_limit", 200);
+        NodeHolder.setLogLimit(limit);
+        logLimitEdit.setText(String.valueOf(limit));
+        logLimitEdit.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence text, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence text, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable text) {
+                try {
+                    int lines = Integer.parseInt(text.toString().trim());
+                    if (lines >= 20 && lines <= 5000) {
+                        NodeHolder.setLogLimit(lines);
+                        getSharedPreferences("nearchain", MODE_PRIVATE).edit().putInt("log_limit", lines).apply();
+                    }
+                } catch (NumberFormatException ignored) {
+                    // Ignore partial input such as an empty field.
+                }
+            }
+        });
+    }
+
+    // ----- wallet deletion -----
+
+    private void confirmDeleteWallet() {
+        if (!WalletStore.exists(this)) {
+            toast("There is no wallet to delete.");
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Delete wallet?")
+                .setMessage("This removes the wallet from this phone. Any CDC held by this address is lost "
+                        + "unless you backed up the key. Mining will stop.")
+                .setPositiveButton("Delete", (dialog, which) -> {
+                    MiningService.stop(this);
+                    NodeHolder.setWallet(null);
+                    if (WalletStore.delete(this)) {
+                        toast("Wallet deleted.");
+                    } else {
+                        toast("Could not delete the wallet file.");
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void showPanel(boolean miner) {
@@ -342,7 +419,12 @@ public class MainActivity extends Activity {
         blocksView.setText("Blocks mined by this phone: " + NodeHolder.blocksMined());
         hashrateView.setText(String.format("Hash rate: %,.0f hashes/s", NodeHolder.hashrate()));
         nonceView.setText("Current nonce: " + String.format("%,d", NodeHolder.currentNonce()));
-        logView.setText(NodeHolder.logText());
+        updateMiningButtons();
+        String logText = NodeHolder.logText();
+        if (!logText.equals(logView.getText().toString())) {
+            logView.setText(logText);
+            logScroll.post(() -> logScroll.fullScroll(View.FOCUS_DOWN));
+        }
 
         peersView.setText(NodeHolder.peersText());
         addressView.setText(address == null ? "No wallet yet" : "Address: " + address);

@@ -97,12 +97,23 @@
                 android:paddingTop="8dp"
                 android:text="Mining log"
                 android:textStyle="bold" />
-            <TextView
-                android:id="@+id/logView"
+            <EditText
+                android:id="@+id/logLimitEdit"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:fontFamily="monospace"
-                android:textSize="12sp" />
+                android:hint="Lines to keep (20 to 5000)"
+                android:inputType="number" />
+            <ScrollView
+                android:id="@+id/logScroll"
+                android:layout_width="match_parent"
+                android:layout_height="200dp">
+                <TextView
+                    android:id="@+id/logView"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:textSize="12sp" />
+            </ScrollView>
 
             <TextView
                 android:layout_width="match_parent"
@@ -161,6 +172,14 @@
                     android:layout_weight="1"
                     android:text="Unlock wallet" />
             </LinearLayout>
+
+            <Button
+                android:id="@+id/deleteWalletButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:backgroundTint="#C62828"
+                android:textColor="#FFFFFFFF"
+                android:text="Delete wallet" />
 
             <TextView
                 android:layout_width="match_parent"
