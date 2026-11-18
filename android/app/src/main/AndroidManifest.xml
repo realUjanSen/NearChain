@@ -33,6 +33,11 @@
                 android:value="Proof-of-work mining of NearChain blocks" />
         </service>
 
+        <activity
+            android:name=".ExplorerActivity"
+            android:exported="false"
+            android:label="Blockchain viewer" />
+
         <receiver
             android:name=".InstallReceiver"
             android:exported="false" />
