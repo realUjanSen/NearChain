@@ -2,6 +2,7 @@ package com.nearchain.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -60,6 +61,11 @@ public class MainActivity extends Activity {
     private TextView updateStatusView;
     private Button startButton;
     private Button walletToggleButton;
+    private static final int REQUEST_BLUETOOTH = 21;
+    private EditText btMacEdit;
+    private TextView btStatusView;
+    private TextView btDevicesView;
+    private Runnable pendingBluetooth;
     private static final int REQUEST_SCAN = 11;
     private ImageView qrView;
     private boolean qrShown;
@@ -126,6 +132,15 @@ public class MainActivity extends Activity {
         ((Button) findViewById(R.id.deleteWalletButton)).setOnClickListener(v -> confirmDeleteWallet());
         ((Button) findViewById(R.id.lockButton)).setOnClickListener(v -> lockWallet());
         walletToggleButton = findViewById(R.id.walletToggleButton);
+        btMacEdit = findViewById(R.id.btMacEdit);
+        btStatusView = findViewById(R.id.btStatusView);
+        btDevicesView = findViewById(R.id.btDevicesView);
+        ((Button) findViewById(R.id.btOnButton)).setOnClickListener(
+                v -> withBluetoothPermissions(this::turnOnBluetooth));
+        ((Button) findViewById(R.id.btFindButton)).setOnClickListener(
+                v -> withBluetoothPermissions(this::findBluetooth));
+        ((Button) findViewById(R.id.btConnectButton)).setOnClickListener(
+                v -> withBluetoothPermissions(this::connectBluetooth));
         walletToggleButton.setOnClickListener(v -> toggleWallet());
         qrView = findViewById(R.id.qrView);
         ((Button) findViewById(R.id.showQrButton)).setOnClickListener(v -> toggleQr());
@@ -138,6 +153,84 @@ public class MainActivity extends Activity {
         ((Button) findViewById(R.id.unlockButton)).setOnClickListener(v -> unlockWallet());
         ((Button) findViewById(R.id.sendButton)).setOnClickListener(v -> buildSignedTransfer());
         showPanel(true);
+    }
+
+    // ----- Bluetooth -----
+
+    /** Runs the action once the Bluetooth permissions are granted. Asks for them first if needed. */
+    private void withBluetoothPermissions(Runnable action) {
+        if (Build.VERSION.SDK_INT < 23) {
+            action.run();
+            return;
+        }
+        java.util.List<String> missing = new java.util.ArrayList<>();
+        String[] wanted = Build.VERSION.SDK_INT >= 31
+                ? new String[] {android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_SCAN}
+                : new String[] {android.Manifest.permission.ACCESS_FINE_LOCATION};
+        for (String permission : wanted) {
+            if (checkSelfPermission(permission) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                missing.add(permission);
+            }
+        }
+        if (missing.isEmpty()) {
+            action.run();
+        } else {
+            pendingBluetooth = action;
+            requestPermissions(missing.toArray(new String[0]), REQUEST_BLUETOOTH);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode != REQUEST_BLUETOOTH) {
+            return;
+        }
+        boolean granted = results.length > 0;
+        for (int r : results) {
+            granted &= r == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        }
+        Runnable action = pendingBluetooth;
+        pendingBluetooth = null;
+        if (granted && action != null) {
+            action.run();
+        } else {
+            toast("Bluetooth permission is needed for this.");
+        }
+    }
+
+    private void turnOnBluetooth() {
+        String status = NodeHolder.startBluetooth();
+        btStatusView.setText(status);
+        NodeHolder.log(status);
+    }
+
+    private void findBluetooth() {
+        turnOnBluetooth();
+        BluetoothLink link = NodeHolder.bluetooth();
+        if (link == null || !link.available()) {
+            toast("Turn Bluetooth on first.");
+            return;
+        }
+        link.startDiscovery(this);
+        btDevicesView.setText("Searching for nearby phones for about 12 seconds...");
+        handler.postDelayed(() -> link.stopDiscovery(this), 12000L);
+    }
+
+    private void connectBluetooth() {
+        String mac = btMacEdit.getText().toString().trim().toUpperCase();
+        if (!mac.matches("([0-9A-F]{2}:){5}[0-9A-F]{2}")) {
+            toast("Enter the phone's Bluetooth address, like AA:BB:CC:DD:EE:FF.");
+            return;
+        }
+        turnOnBluetooth();
+        BluetoothLink link = NodeHolder.bluetooth();
+        if (link == null || !link.available()) {
+            toast("Turn Bluetooth on first.");
+            return;
+        }
+        NodeHolder.log("connecting over Bluetooth to " + mac);
+        link.connect(mac);
     }
 
     /** Green "Unlock wallet" when locked, red "Lock wallet" when unlocked. Creates a wallet if none exists. */
@@ -603,6 +696,16 @@ public class MainActivity extends Activity {
         }
 
         peersView.setText(NodeHolder.peersText());
+        BluetoothLink bluetooth = NodeHolder.bluetooth();
+        if (bluetooth != null) {
+            StringBuilder devices = new StringBuilder();
+            for (String line : bluetooth.discovered()) {
+                devices.append(line).append('\n');
+            }
+            if (devices.length() > 0) {
+                btDevicesView.setText("Found nearby (tap an address into the box above):\n" + devices);
+            }
+        }
         addressView.setText(address == null ? "No wallet yet" : "Address: " + address);
         walletStatusView.setText(wallet != null ? "Wallet unlocked"
                 : address == null ? "No wallet. Create one to start mining." : "Wallet locked");

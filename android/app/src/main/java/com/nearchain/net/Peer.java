@@ -2,31 +2,36 @@ package com.nearchain.net;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.math.BigInteger;
-import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
-/** One TCP connection. Messages are single lines of JSON. */
+/** One connection, over Wi-Fi or Bluetooth. Messages are single lines of JSON. */
 final class Peer {
     static final int MAX_LINE_CHARS = 16 * 1024 * 1024;
 
-    final Socket socket;
     private final BufferedReader in;
     private final BufferedWriter out;
+    private final Closeable closer;
+    private final String name;
+    volatile String address = "";
     volatile BigInteger work = BigInteger.ZERO;
     volatile long height;
 
-    Peer(Socket socket) throws IOException {
-        this.socket = socket;
-        this.in = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-        this.out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
+    Peer(InputStream input, OutputStream output, String name, Closeable closer) {
+        this.in = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8));
+        this.out = new BufferedWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
+        this.name = name;
+        this.closer = closer;
     }
 
     String name() {
-        return socket.getInetAddress().getHostAddress() + ":" + socket.getPort();
+        return name;
     }
 
     synchronized void sendLine(String line) throws IOException {
@@ -45,7 +50,7 @@ final class Peer {
 
     void close() {
         try {
-            socket.close();
+            closer.close();
         } catch (IOException ignored) {
             // already closed
         }

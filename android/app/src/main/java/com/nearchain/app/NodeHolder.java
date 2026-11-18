@@ -33,6 +33,7 @@ public final class NodeHolder {
     private static Mempool mempool;
     private static NetNode net;
     private static Discovery discovery;
+    private static BluetoothLink bluetooth;
     private static boolean networkStarted;
     private static volatile Wallet wallet;
     private static volatile boolean mining;
@@ -109,6 +110,30 @@ public final class NodeHolder {
 
     public static void setWallet(Wallet value) {
         wallet = value;
+        init();
+        net.setLocalAddress(value == null ? "" : value.address());
+    }
+
+    /** The Bluetooth link. Null until startBluetooth() has been called. */
+    public static BluetoothLink bluetooth() {
+        return bluetooth;
+    }
+
+    /** Starts the Bluetooth listener. Call only after the Bluetooth permissions are granted. */
+    public static synchronized String startBluetooth() {
+        init();
+        if (bluetooth == null) {
+            bluetooth = new BluetoothLink(net, NodeHolder::log);
+        }
+        if (!bluetooth.available()) {
+            return "Bluetooth is off or not available on this phone.";
+        }
+        try {
+            bluetooth.startServer();
+            return "Bluetooth link is on.";
+        } catch (IOException | SecurityException e) {
+            return "Could not start the Bluetooth link: " + e.getMessage();
+        }
     }
 
     /** Builds the next block on the tip, including pending transfers. The caller mines it. */

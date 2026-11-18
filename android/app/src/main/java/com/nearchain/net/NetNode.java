@@ -10,7 +10,10 @@ import com.nearchain.core.Tx;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.math.BigInteger;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -20,8 +23,8 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Wi-Fi peer protocol. Same messages as src/nearchain/network.py:
- * hello, get_chain, chain, block, tx.
+ * Peer protocol over Wi-Fi and Bluetooth. Same messages as the original desktop protocol, plus
+ * an "address" field in hello so peers can show each other's wallet address.
  */
 public final class NetNode {
     private final Chain chain;
@@ -31,6 +34,7 @@ public final class NetNode {
     private final List<Peer> peers = new CopyOnWriteArrayList<>();
     private volatile ServerSocket server;
     private volatile boolean running;
+    private volatile String localAddress = "";
 
     public NetNode(Chain chain, Mempool mempool, Log log, Events events) {
         this.chain = chain;
@@ -39,7 +43,12 @@ public final class NetNode {
         this.events = events;
     }
 
-    /** Listen for peers on this port. Returns the port actually bound. */
+    /** The wallet address this phone announces to peers. Empty when no wallet exists. */
+    public void setLocalAddress(String address) {
+        localAddress = address == null ? "" : address;
+    }
+
+    /** Listen for Wi-Fi peers on this port. Returns the port actually bound. */
     public synchronized int start(int port) throws IOException {
         if (running) {
             return server.getLocalPort();
@@ -55,7 +64,7 @@ public final class NetNode {
         Thread rebroadcast = new Thread(this::rebroadcastLoop, "nearchain-rebroadcast");
         rebroadcast.setDaemon(true);
         rebroadcast.start();
-        log.log("listening for peers on port " + socket.getLocalPort());
+        log.log("listening for Wi-Fi peers on port " + socket.getLocalPort());
         return socket.getLocalPort();
     }
 
@@ -64,7 +73,7 @@ public final class NetNode {
             try {
                 Socket socket = new Socket();
                 socket.connect(new InetSocketAddress(host, port), 5000);
-                addPeer(socket);
+                addSocketPeer(socket);
             } catch (IOException e) {
                 log.log("could not connect to " + host + ":" + port + ": " + e.getMessage());
             }
@@ -73,29 +82,24 @@ public final class NetNode {
         t.start();
     }
 
-    public int peerCount() {
-        return peers.size();
+    /** Adds a Bluetooth (or other stream) connection. The caller opened the streams. */
+    public void addStreamPeer(InputStream input, OutputStream output, String name, Closeable closer) throws IOException {
+        addPeer(new Peer(input, output, name, closer));
     }
 
-    /** Pending transfers are sent again every 30 seconds until a block confirms them. */
-    private void rebroadcastLoop() {
-        while (running) {
-            try {
-                Thread.sleep(30000L);
-            } catch (InterruptedException e) {
-                return;
-            }
-            for (Tx t : mempool.pending()) {
-                broadcastTx(t, null);
-            }
-        }
+    public int peerCount() {
+        return peers.size();
     }
 
     /** One line per peer, for the UI. */
     public String describePeers() {
         StringBuilder sb = new StringBuilder();
         for (Peer p : peers) {
-            sb.append(p.name()).append("  height ").append(p.height).append('\n');
+            sb.append(p.name()).append("  height ").append(p.height);
+            if (!p.address.isEmpty()) {
+                sb.append("\n    wallet ").append(p.address);
+            }
+            sb.append('\n');
         }
         return sb.length() == 0 ? "No peers connected." : sb.toString();
     }
@@ -103,7 +107,7 @@ public final class NetNode {
     private void acceptLoop() {
         while (running) {
             try {
-                addPeer(server.accept());
+                addSocketPeer(server.accept());
             } catch (IOException e) {
                 if (running) {
                     log.log("accept failed: " + e.getMessage());
@@ -113,9 +117,13 @@ public final class NetNode {
         }
     }
 
-    private void addPeer(Socket socket) throws IOException {
+    private void addSocketPeer(Socket socket) throws IOException {
         socket.setTcpNoDelay(true);
-        Peer peer = new Peer(socket);
+        addPeer(new Peer(socket.getInputStream(), socket.getOutputStream(),
+                socket.getInetAddress().getHostAddress() + ":" + socket.getPort(), socket));
+    }
+
+    private void addPeer(Peer peer) throws IOException {
         peers.add(peer);
         log.log("peer connected: " + peer.name());
         send(peer, hello());
@@ -140,6 +148,20 @@ public final class NetNode {
         } finally {
             peer.close();
             peers.remove(peer);
+        }
+    }
+
+    /** Pending transfers are sent again every 30 seconds until a block confirms them. */
+    private void rebroadcastLoop() {
+        while (running) {
+            try {
+                Thread.sleep(30000L);
+            } catch (InterruptedException e) {
+                return;
+            }
+            for (Tx t : mempool.pending()) {
+                broadcastTx(t, null);
+            }
         }
     }
 
@@ -175,6 +197,7 @@ public final class NetNode {
         }
         peer.work = new BigInteger(msg.get("work").toString());
         peer.height = msg.getLong("height");
+        peer.address = msg.optString("address", "");
         if (peer.work.compareTo(chain.cumulativeWork()) > 0) {
             send(peer, new JSONObject().put("type", "get_chain"));
         }
@@ -289,7 +312,8 @@ public final class NetNode {
                         .put("network", Consensus.NETWORK_ID)
                         .put("version", Consensus.PROTOCOL_VERSION)
                         .put("height", chain.height())
-                        .put("work", chain.cumulativeWork());
+                        .put("work", chain.cumulativeWork())
+                        .put("address", localAddress);
             } catch (org.json.JSONException e) {
                 throw new IOException("could not build hello message", e);
             }
